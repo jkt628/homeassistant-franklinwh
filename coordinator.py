@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 
-from franklinwh import Client, TokenFetcher, Mode
+from franklinwh import Client, Mode, TokenFetcher
 from franklinwh.client import Stats
 
 from homeassistant.core import HomeAssistant
@@ -49,7 +49,6 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
         # Store credentials for lazy client initialization
         # Client will be created in executor during first update to avoid blocking
-        self.token_fetcher: TokenFetcher = None  # type: ignore  # noqa: PGH003
         self.client: Client = None  # type: ignore  # noqa: PGH003
         self._client_lock = False
 
@@ -67,7 +66,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             # Only mark unavailable after 3 consecutive failures (3 minutes)
             always_update=False,
         )
-        
+
         # Track consecutive failures
         self._consecutive_failures = 0
         self._max_failures = 3
@@ -79,28 +78,24 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             if self.client is None and not self._client_lock:
                 self._client_lock = True
                 try:
-
-                    def create_client():
-                        token_fetcher = TokenFetcher(self.username, self.password)
-                        return Client(token_fetcher, self.gateway_id)
-
-                    self.client = await self.hass.async_add_executor_job(create_client)
-                    self.token_fetcher = self.client.fetcher
+                    token_fetcher = TokenFetcher(self.username, self.password)
+                    self.client = Client(token_fetcher, self.gateway_id)
+                    await self.client.refresh_token()
                 except Exception as err:
                     self._client_lock = False
                     raise UpdateFailed(f"Failed to initialize client: {err}") from err
 
-            # Fetch stats (async method in franklinwh 1.0.0+)
+            # Fetch stats
             stats = await self.client.get_stats()
 
-            if stats is None:
+            if stats is None or stats.current is None:
                 raise UpdateFailed("Failed to fetch stats from FranklinWH API")
 
             _LOGGER.debug(
                 "Stats fetched - SOC: %s%%, Solar: %skW, Grid: %skW",
-                getattr(stats.current, 'battery_soc', 'N/A') if stats.current else 'N/A',
-                getattr(stats.current, 'solar_production', 'N/A') if stats.current else 'N/A',
-                getattr(stats.current, 'grid_use', 'N/A') if stats.current else 'N/A',
+                getattr(stats.current, "battery_soc", "N/A"),
+                getattr(stats.current, "solar_production", "N/A"),
+                getattr(stats.current, "grid_use", "N/A"),
             )
 
             # Fetch switch state (async method in franklinwh 1.0.0+)
@@ -119,47 +114,47 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             # Handle case where AuthenticationError doesn't exist in franklinwh
             if "AuthenticationError" in str(type(err)):
                 raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
-            
+
             # Increment failure counter
             self._consecutive_failures += 1
             _LOGGER.warning(
-                "API error (attempt %d/%d): %s", 
-                self._consecutive_failures, 
-                self._max_failures, 
-                err
+                "API error (attempt %d/%d): %s",
+                self._consecutive_failures,
+                self._max_failures,
+                err,
             )
-            
+
             # Only raise UpdateFailed after max failures
             # This keeps entities available with last known data
             if self._consecutive_failures >= self._max_failures:
                 _LOGGER.error("Max consecutive failures reached, marking unavailable")
                 raise UpdateFailed(f"Error communicating with API: {err}") from err
-            
+
             # Return last known data to keep entities available
             if self.data:
                 _LOGGER.debug("Returning last known data due to temporary failure")
                 return self.data
             raise UpdateFailed(f"Error communicating with API: {err}") from err
-            
+
         except Exception as err:
             # Check if it's an authentication-related error
             if "auth" in str(err).lower() or "token" in str(err).lower():
                 raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
-            
+
             # Increment failure counter
             self._consecutive_failures += 1
             _LOGGER.warning(
-                "API error (attempt %d/%d): %s", 
-                self._consecutive_failures, 
-                self._max_failures, 
-                err
+                "API error (attempt %d/%d): %s",
+                self._consecutive_failures,
+                self._max_failures,
+                err,
             )
-            
+
             # Only raise UpdateFailed after max failures
             if self._consecutive_failures >= self._max_failures:
                 _LOGGER.error("Max consecutive failures reached, marking unavailable")
                 raise UpdateFailed(f"Error communicating with API: {err}") from err
-            
+
             # Return last known data to keep entities available
             if self.data:
                 _LOGGER.debug("Returning last known data due to temporary failure")
@@ -169,7 +164,6 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
     async def async_set_switch_state(self, switches: tuple[bool, bool, bool]) -> None:
         """Set the state of smart switches."""
         try:
-            # Async method in franklinwh 1.0.0+
             await self.client.set_smart_switch_state(switches)
             # Request immediate refresh
             await self.async_request_refresh()
@@ -190,16 +184,16 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
                 # Maps to emergency_backup as the library doesn't have a separate clean_backup mode
                 "clean_backup": Mode.emergency_backup,
             }
-            
+
             if mode not in mode_map:
                 raise ValueError(f"Invalid mode: {mode}")
-            
+
             # Create mode object with default SOC
             mode_obj = mode_map[mode]()
-            
+
             # Set the mode via API (async method in franklinwh 1.0.0+)
             await self.client.set_mode(mode_obj)
-            
+
             # Request immediate refresh
             await self.async_request_refresh()
             _LOGGER.info("Successfully set operation mode to %s", mode)
@@ -209,7 +203,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
     async def async_set_battery_reserve(self, reserve_percent: int) -> None:
         """Set the battery reserve percentage.
-        
+
         This attempts to preserve the current operation mode while updating
         the battery reserve (SOC) percentage. If the current mode cannot be
         determined, it defaults to self_consumption mode.
@@ -220,7 +214,10 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
                 current_mode = await self.client.get_mode()
                 _LOGGER.debug("Current mode retrieved: %s", current_mode)
             except Exception as err:
-                _LOGGER.warning("Could not retrieve current mode, defaulting to self_consumption: %s", err)
+                _LOGGER.warning(
+                    "Could not retrieve current mode, defaulting to self_consumption: %s",
+                    err,
+                )
                 current_mode = None
 
             # Create new mode with updated SOC
@@ -231,10 +228,12 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
             # Async method in franklinwh 1.0.0+
             await self.client.set_mode(mode_obj)
-            
+
             # Request immediate refresh
             await self.async_request_refresh()
             _LOGGER.info("Successfully set battery reserve to %d%%", reserve_percent)
         except Exception as err:
-            _LOGGER.error("Failed to set battery reserve to %d%%: %s", reserve_percent, err)
+            _LOGGER.error(
+                "Failed to set battery reserve to %d%%: %s", reserve_percent, err
+            )
             raise
