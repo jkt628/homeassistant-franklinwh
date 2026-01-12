@@ -7,7 +7,7 @@ import logging
 import sys
 from typing import Final
 
-from franklinwh import Client, Mode, Stats
+from franklinwh import Client, GridStatus, Mode, Stats
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -156,6 +156,17 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
                 self.logger.debug("Returning last known data due to temporary failure")
                 return self.data
             raise UpdateFailed(f"Error communicating with API: {err}") from err
+
+    async def async_set_grid_status(self, status: GridStatus) -> None:
+        """Set the grid connection."""
+        try:
+            await self.client.set_grid_status(status)
+            # the system requires about 4 seconds to change so refresh after 7 seconds
+            await asyncio.sleep(7)
+            await self.async_request_refresh()
+        except Exception as err:
+            self.logger.error("Failed to set grid status: %s", err)
+            raise
 
     async def async_set_switch_state(self, switches: tuple[bool, bool, bool]) -> None:
         """Set the state of smart switches."""
