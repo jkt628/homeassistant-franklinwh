@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import Any
 
 from franklinwh import AccessoryType, GridStatus
@@ -18,8 +17,6 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import CONF_GATEWAY_ID, DOMAIN, MANUFACTURER, MODEL
 from .coordinator import FranklinWHCoordinator
 
-_LOGGER = logging.getLogger(__name__)
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -32,7 +29,7 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
     accessories = await coordinator.client.get_accessories()
-    _LOGGER.debug("Accessories: %s", accessories)
+    coordinator.logger.debug("Accessories: %s", accessories)
 
     for accessory in accessories:
         try:
@@ -43,7 +40,7 @@ async def async_setup_entry(
                         for switch_id in range(3)
                     )
         except KeyError as err:
-            _LOGGER.error("Expected key 'accessoryType' not found: %s", err)
+            coordinator.logger.error("Expected key 'accessoryType' not found: %s", err)
 
     async_add_entities(entities)
 
@@ -109,7 +106,9 @@ class FranklinWHSmartSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEnti
         try:
             await self.coordinator.async_set_switch_state(switches)
         except Exception as err:
-            _LOGGER.error("Failed to turn on switch %d: %s", self._switch_id + 1, err)
+            self.coordinator.logger.error(
+                "Failed to turn on switch %d: %s", self._switch_id + 1, err
+            )
             raise
 
     async def async_turn_off(self, **kwargs: Any) -> None:
@@ -120,7 +119,9 @@ class FranklinWHSmartSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEnti
         try:
             await self.coordinator.async_set_switch_state(switches)
         except Exception as err:
-            _LOGGER.error("Failed to turn off switch %d: %s", self._switch_id + 1, err)
+            self.coordinator.logger.error(
+                "Failed to turn off switch %d: %s", self._switch_id + 1, err
+            )
             raise
 
     @property
@@ -190,7 +191,7 @@ class GridSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEntity):
         try:
             await self.coordinator.client.set_grid_status(GridStatus.NORMAL)
         except Exception as err:
-            _LOGGER.error("Failed to turn on grid connection: %s", err)
+            self.coordinator.logger.error("Failed to turn on grid connection: %s", err)
             raise
 
     async def async_turn_off(self, **kwargs: Any) -> None:
@@ -198,7 +199,7 @@ class GridSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEntity):
         try:
             await self.coordinator.client.set_grid_status(GridStatus.OFF)
         except Exception as err:
-            _LOGGER.error("Failed to turn off grid connection: %s", err)
+            self.coordinator.logger.error("Failed to turn off grid connection: %s", err)
             raise
         asyncio.create_task(self.coordinator.async_request_refresh())  # noqa: RUF006
 

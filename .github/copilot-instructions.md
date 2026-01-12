@@ -78,7 +78,7 @@ native_unit_of_measurement=UnitOfEnergy.WATT_HOUR
 try:
     return self.entity_description.value_fn(self.coordinator.data)
 except (AttributeError, TypeError, KeyError) as err:
-    _LOGGER.debug("Error getting value for %s: %s", self.key, err)
+    self.coordinator.logger.debug("Error getting value for %s: %s", self.key, err)
     return None
 ```
 
@@ -231,7 +231,7 @@ state_class=SensorStateClass.TOTAL_INCREASING
 - Follow Home Assistant coding standards
 - Use async/await for all I/O operations
 - Type hints for all function parameters and returns
-- Comprehensive error handling with `_LOGGER.debug/warning/error`
+- Comprehensive error handling with `_LOGGER.debug/warning/error` or `coordinator/self.logger.debug/warning/error`
 - Clear, descriptive variable names
 - Comments for complex logic only
 

@@ -1,10 +1,9 @@
 """Sensor platform for FranklinWH integration."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-import logging
-from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -13,11 +12,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    PERCENTAGE,
-    UnitOfEnergy,
-    UnitOfPower,
-)
+from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -25,8 +20,6 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_GATEWAY_ID, DOMAIN, MANUFACTURER, MODEL
 from .coordinator import FranklinWHCoordinator, FranklinWHData
-
-_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -51,7 +44,9 @@ SENSOR_TYPES: tuple[FranklinWHSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.KILO_WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda data: data.stats.current.battery_use * -1 if data.stats else None,
+        value_fn=lambda data: data.stats.current.battery_use * -1
+        if data.stats
+        else None,
     ),
     FranklinWHSensorEntityDescription(
         key="battery_charge",
@@ -67,7 +62,9 @@ SENSOR_TYPES: tuple[FranklinWHSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=lambda data: data.stats.totals.battery_discharge if data.stats else None,
+        value_fn=lambda data: data.stats.totals.battery_discharge
+        if data.stats
+        else None,
     ),
     FranklinWHSensorEntityDescription(
         key="battery_charge_from_grid",
@@ -78,8 +75,13 @@ SENSOR_TYPES: tuple[FranklinWHSensorEntityDescription, ...] = (
         value_fn=lambda data: (
             # Battery charged from grid = Total battery charge - Solar energy
             # (assuming all solar goes to battery first, excess goes to home/grid)
-            max(0, (data.stats.totals.battery_charge or 0) - (data.stats.totals.solar or 0))
-            if data.stats else None
+            max(
+                0,
+                (data.stats.totals.battery_charge or 0)
+                - (data.stats.totals.solar or 0),
+            )
+            if data.stats
+            else None
         ),
     ),
     FranklinWHSensorEntityDescription(
@@ -120,7 +122,9 @@ SENSOR_TYPES: tuple[FranklinWHSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.KILO_WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda data: data.stats.current.solar_production if data.stats else None,
+        value_fn=lambda data: data.stats.current.solar_production
+        if data.stats
+        else None,
     ),
     FranklinWHSensorEntityDescription(
         key="solar_energy",
@@ -136,7 +140,9 @@ SENSOR_TYPES: tuple[FranklinWHSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.KILO_WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda data: data.stats.current.generator_production if data.stats else None,
+        value_fn=lambda data: data.stats.current.generator_production
+        if data.stats
+        else None,
     ),
     FranklinWHSensorEntityDescription(
         key="generator_energy",
@@ -160,7 +166,9 @@ SENSOR_TYPES: tuple[FranklinWHSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=lambda data: (data.stats.totals.switch_1_use / 1000) if data.stats else None,
+        value_fn=lambda data: (data.stats.totals.switch_1_use / 1000)
+        if data.stats
+        else None,
     ),
     FranklinWHSensorEntityDescription(
         key="switch_2_load",
@@ -176,7 +184,9 @@ SENSOR_TYPES: tuple[FranklinWHSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=lambda data: (data.stats.totals.switch_2_use / 1000) if data.stats else None,
+        value_fn=lambda data: (data.stats.totals.switch_2_use / 1000)
+        if data.stats
+        else None,
     ),
     FranklinWHSensorEntityDescription(
         key="v2l_use",
@@ -192,7 +202,9 @@ SENSOR_TYPES: tuple[FranklinWHSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=lambda data: (data.stats.totals.v2l_export / 1000) if data.stats else None,
+        value_fn=lambda data: (data.stats.totals.v2l_export / 1000)
+        if data.stats
+        else None,
     ),
     FranklinWHSensorEntityDescription(
         key="v2l_import",
@@ -200,7 +212,9 @@ SENSOR_TYPES: tuple[FranklinWHSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=lambda data: (data.stats.totals.v2l_import / 1000) if data.stats else None,
+        value_fn=lambda data: (data.stats.totals.v2l_import / 1000)
+        if data.stats
+        else None,
     ),
     FranklinWHSensorEntityDescription(
         key="home_energy_total",
@@ -220,12 +234,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up FranklinWH sensor based on a config entry."""
     coordinator: FranklinWHCoordinator = hass.data[DOMAIN][entry.entry_id]
-    
+
     entities = [
         FranklinWHSensorEntity(coordinator, description, entry)
         for description in SENSOR_TYPES
     ]
-    
+
     async_add_entities(entities)
 
 
@@ -244,12 +258,12 @@ class FranklinWHSensorEntity(CoordinatorEntity[FranklinWHCoordinator], SensorEnt
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
-        
+
         gateway_id = entry.data[CONF_GATEWAY_ID]
-        
+
         # Set unique ID
         self._attr_unique_id = f"{gateway_id}_{description.key}"
-        
+
         # Set device info
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, gateway_id)},
@@ -268,7 +282,7 @@ class FranklinWHSensorEntity(CoordinatorEntity[FranklinWHCoordinator], SensorEnt
         try:
             return self.entity_description.value_fn(self.coordinator.data)
         except (AttributeError, TypeError, KeyError) as err:
-            _LOGGER.debug(
+            self.coordinator.logger.debug(
                 "Error getting value for %s: %s", self.entity_description.key, err
             )
             return None

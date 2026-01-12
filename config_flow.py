@@ -21,7 +21,7 @@ import homeassistant.helpers.config_validation as cv
 from .const import CONF_GATEWAY_ID, DEFAULT_SCAN_INTERVAL, DOMAIN
 from .utils import get_client
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(DOMAIN)
 
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:

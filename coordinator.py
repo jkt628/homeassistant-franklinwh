@@ -14,8 +14,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import DEFAULT_LOCAL_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
 from .utils import get_client
 
-_LOGGER = logging.getLogger(__name__)
-
 
 class FranklinWHData:
     """Class to hold FranklinWH data."""
@@ -59,7 +57,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
         super().__init__(
             hass,
-            _LOGGER,
+            logging.getLogger(DOMAIN),
             name=DOMAIN,
             update_interval=timedelta(seconds=update_interval),
             # Keep entities available during temporary failures
@@ -95,7 +93,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             if stats is None or stats.current is None:
                 raise UpdateFailed("Failed to fetch stats from FranklinWH API")
 
-            _LOGGER.debug(
+            self.logger.debug(
                 "Stats fetched - SOC: %s%%, Solar: %skW, Grid: %skW",
                 getattr(stats.current, "battery_soc", "N/A"),
                 getattr(stats.current, "solar_production", "N/A"),
@@ -106,7 +104,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             try:
                 switch_state = await self.client.get_smart_switch_state()
             except Exception as err:
-                _LOGGER.debug("Failed to fetch switch state: %s", err)
+                self.logger.debug("Failed to fetch switch state: %s", err)
                 switch_state = None
 
             # Reset failure counter on success
@@ -121,7 +119,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
             # Increment failure counter
             self._consecutive_failures += 1
-            _LOGGER.warning(
+            self.logger.warning(
                 "API error (attempt %d/%d): %s",
                 self._consecutive_failures,
                 self._max_failures,
@@ -131,12 +129,14 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             # Only raise UpdateFailed after max failures
             # This keeps entities available with last known data
             if self._consecutive_failures >= self._max_failures:
-                _LOGGER.error("Max consecutive failures reached, marking unavailable")
+                self.logger.error(
+                    "Max consecutive failures reached, marking unavailable"
+                )
                 raise UpdateFailed(f"Error communicating with API: {err}") from err
 
             # Return last known data to keep entities available
             if self.data:
-                _LOGGER.debug("Returning last known data due to temporary failure")
+                self.logger.debug("Returning last known data due to temporary failure")
                 return self.data
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
@@ -147,7 +147,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
             # Increment failure counter
             self._consecutive_failures += 1
-            _LOGGER.warning(
+            self.logger.warning(
                 "API error (attempt %d/%d): %s",
                 self._consecutive_failures,
                 self._max_failures,
@@ -156,12 +156,14 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
             # Only raise UpdateFailed after max failures
             if self._consecutive_failures >= self._max_failures:
-                _LOGGER.error("Max consecutive failures reached, marking unavailable")
+                self.logger.error(
+                    "Max consecutive failures reached, marking unavailable"
+                )
                 raise UpdateFailed(f"Error communicating with API: {err}") from err
 
             # Return last known data to keep entities available
             if self.data:
-                _LOGGER.debug("Returning last known data due to temporary failure")
+                self.logger.debug("Returning last known data due to temporary failure")
                 return self.data
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
@@ -172,7 +174,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             # Request immediate refresh
             await self.async_request_refresh()
         except Exception as err:
-            _LOGGER.error("Failed to set switch state: %s", err)
+            self.logger.error("Failed to set switch state: %s", err)
             raise
 
     async def async_set_operation_mode(self, mode: str) -> None:
@@ -200,9 +202,9 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
             # Request immediate refresh
             await self.async_request_refresh()
-            _LOGGER.info("Successfully set operation mode to %s", mode)
+            self.logger.info("Successfully set operation mode to %s", mode)
         except Exception as err:
-            _LOGGER.error("Failed to set operation mode to %s: %s", mode, err)
+            self.logger.error("Failed to set operation mode to %s: %s", mode, err)
             raise
 
     async def async_set_battery_reserve(self, reserve_percent: int) -> None:
@@ -216,9 +218,9 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             # Try to get the current mode to preserve it (async method in franklinwh 1.0.0+)
             try:
                 current_mode = await self.client.get_mode()
-                _LOGGER.debug("Current mode retrieved: %s", current_mode)
+                self.logger.debug("Current mode retrieved: %s", current_mode)
             except Exception as err:
-                _LOGGER.warning(
+                self.logger.warning(
                     "Could not retrieve current mode, defaulting to self_consumption: %s",
                     err,
                 )
@@ -235,9 +237,11 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
             # Request immediate refresh
             await self.async_request_refresh()
-            _LOGGER.info("Successfully set battery reserve to %d%%", reserve_percent)
+            self.logger.info(
+                "Successfully set battery reserve to %d%%", reserve_percent
+            )
         except Exception as err:
-            _LOGGER.error(
+            self.logger.error(
                 "Failed to set battery reserve to %d%%: %s", reserve_percent, err
             )
             raise
