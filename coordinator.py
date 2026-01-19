@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 import logging
 import sys
-from typing import Final
+from typing import Any, Final
 
 from franklinwh import Client, GridStatus, Mode, Stats
 
@@ -157,37 +157,31 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
                 return self.data
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
-    async def async_set_generator(self, enabled: bool) -> None:
-        """Set the generator."""
+    async def async_set(self, func, *args: Any, **kwargs: Any) -> None:
+        """Generic setter to call client methods and refresh data."""
+        sleep = kwargs.pop("sleep", 7)
+        value = kwargs.pop("value", "value")
         try:
-            await self.client.set_generator(enabled)
-            # the system requires about 4 seconds to change so refresh after 7 seconds
-            await asyncio.sleep(7)
+            await func(*args, **kwargs)
+            await asyncio.sleep(sleep)
             await self.async_request_refresh()
         except Exception as err:
-            self.logger.error("Failed to set generator: %s", err)
+            self.logger.error("Failed to set %s: %s", value, err)
             raise
+
+    async def async_set_generator(self, enabled: bool) -> None:
+        """Set the generator."""
+        await self.async_set(self.client.set_generator, enabled, value="generator")
 
     async def async_set_grid_status(self, status: GridStatus) -> None:
         """Set the grid connection."""
-        try:
-            await self.client.set_grid_status(status)
-            # the system requires about 4 seconds to change so refresh after 7 seconds
-            await asyncio.sleep(7)
-            await self.async_request_refresh()
-        except Exception as err:
-            self.logger.error("Failed to set grid status: %s", err)
-            raise
+        await self.async_set(self.client.set_grid_status, status, value="grid status")
 
     async def async_set_switch_state(self, switches: tuple[bool, bool, bool]) -> None:
         """Set the state of smart switches."""
-        try:
-            await self.client.set_smart_switch_state(switches)
-            # Request immediate refresh
-            await self.async_request_refresh()
-        except Exception as err:
-            self.logger.error("Failed to set switch state: %s", err)
-            raise
+        await self.async_set(
+            self.client.set_smart_switch_state, switches, value="switch state", sleep=1
+        )
 
     async def async_set_operation_mode(self, mode: str) -> None:
         """Set the operation mode of the system."""
