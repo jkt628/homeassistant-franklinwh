@@ -22,17 +22,20 @@ class FranklinWHData:
     """Statistics for FranklinWH."""
 
     stats: Stats | None = None
+    mode: Mode | None = None
     switch_state: tuple[bool, bool, bool] | None = None
 
 
 class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
     """Fetch FranklinWH data.
 
-    This class always produces stats and optionally other attributes when enabled.
+    This class always produces stats, mode and optionally other attributes when enabled.
     """
 
+    # MUST align with FranklinWHData
     _data: Final = {
         "stats": "get_stats",
+        "mode": "get_mode",
         "switch_state": "get_smart_switch_state",
     }
 
@@ -118,6 +121,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
                             f"Failed to initialize client: {err}"
                         ) from err
                     self.enable("stats")
+                    self.enable("mode")
 
             # Fetch data attributes
             tasks = [function() for function in self._methods]
@@ -181,6 +185,17 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
         """Set the state of smart switches."""
         await self.async_set(
             self.client.set_smart_switch_state, switches, value="switch state", sleep=1
+        )
+
+    async def async_set_mode(self, value: str) -> None:
+        """Set the operating mode."""
+        mode = await self.client.get_mode_by_name(value)
+        await self.async_set(self.client.set_mode, mode, value="mode")
+
+    async def async_set_backup_reserve(self, soc: int) -> None:
+        """Set the backup reserve."""
+        await self.async_set(
+            self.client.set_backup_reserve, soc, value="backup reserve"
         )
 
     async def async_set_operation_mode(self, mode: str) -> None:
