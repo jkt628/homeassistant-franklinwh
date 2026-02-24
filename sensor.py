@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 
-from franklinwh import AccessoryType, Stats
+from franklinwh import AccessoryType, RunStatus, Stats
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -226,6 +226,7 @@ async def async_setup_entry(
             yield FranklinWHSensorEntity(coordinator, description, entry)
 
     entities = list(_entities(GENERIC_SENSORS))
+    entities.append(FranklinWHBatterySensorEntity(coordinator, entry))
 
     accessories = await coordinator.client.get_accessories()
     coordinator.logger.debug("Accessories: %s", accessories)
@@ -299,3 +300,38 @@ class FranklinWHSensorEntity(CoordinatorEntity[FranklinWHCoordinator], SensorEnt
             and self.coordinator.data is not None
             and self.coordinator.data.stats is not None
         )
+
+
+class FranklinWHBatterySensorEntity(FranklinWHSensorEntity):
+    """Representation of a FranklinWH battery run status."""
+
+    def __init__(
+        self,
+        coordinator: FranklinWHCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            coordinator,
+            FranklinWHSensorEntityDescription(
+                key="battery_run_status",
+                name="Battery Run Status",
+                device_class=SensorDeviceClass.ENUM,
+                options=list(RunStatus.titles()),
+                value_fn=lambda stats: stats.current.run_status.title,
+            ),
+            entry,
+        )
+
+    @property
+    def icon(self) -> str:
+        """Return the entity's icon."""
+        match self.native_value:
+            case RunStatus.STANDBY.title:
+                return "mdi:battery"
+            case RunStatus.CHARGING.title:
+                return "mdi:battery-plus-variant"
+            case RunStatus.DISCHARGING.title:
+                return "mdi:battery-minus-variant"
+            case _:
+                return "mdi:battery-alert"
