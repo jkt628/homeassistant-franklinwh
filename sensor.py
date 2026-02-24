@@ -6,8 +6,7 @@ from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 import logging
 
-from franklinwh import AccessoryType
-from franklinwh.client import Stats
+from franklinwh import AccessoryType, RunStatus, Stats
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -230,6 +229,7 @@ async def async_setup_entry(
             yield FranklinWHSensorEntity(coordinator, description, entry)
 
     entities = list(_entities(GENERIC_SENSORS))
+    entities.append(FranklinWHBatterySensorEntity(coordinator, entry))
 
     accessories = await coordinator.client.get_accessories()
     coordinator.logger.debug("Accessories: %s", accessories)
@@ -303,3 +303,49 @@ class FranklinWHSensorEntity(CoordinatorEntity[FranklinWHCoordinator], SensorEnt
             and self.coordinator.data is not None
             and self.coordinator.data.stats is not None
         )
+
+
+class FranklinWHBatterySensorEntity(FranklinWHSensorEntity):
+    """Representation of a FranklinWH battery run status."""
+
+    def __init__(
+        self,
+        coordinator: FranklinWHCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            coordinator,
+            FranklinWHSensorEntityDescription(
+                key="battery_run_status",
+                name="Battery Run Status",
+                device_class=SensorDeviceClass.ENUM,
+                options=list(RunStatus.values()),
+            ),
+            entry,
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the entity's value."""
+        if self.coordinator.data is None or self.coordinator.data.stats is None:
+            return None
+
+        try:
+            return self.coordinator.data.stats.current.run_status.value
+        except (AttributeError, TypeError, KeyError) as err:
+            _LOGGER.debug("Error getting battery run status: %s", err)
+            return None
+
+    @property
+    def icon(self) -> str:
+        """Return the entity's icon."""
+        match self.native_value:
+            case RunStatus.STANDBY.value:
+                return "mdi:battery"
+            case RunStatus.CHARGING.value:
+                return "mdi:battery-plus-variant"
+            case RunStatus.DISCHARGING.value:
+                return "mdi:battery-minus-variant"
+            case _:
+                return "mdi:battery-alert"
