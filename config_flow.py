@@ -7,10 +7,14 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant import config_entries
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 
@@ -39,15 +43,6 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
         # Try to fetch data to validate credentials and gateway
         stats = await client.get_stats()
-
-        if stats is None:
-            raise CannotConnect("Unable to fetch data from FranklinWH")
-
-        # Return info that you want to store in the config entry.
-        return {
-            "title": f"FranklinWH {gateway_id[-6:]}",
-            "gateway_id": gateway_id,
-        }
     except Exception as err:
         _LOGGER.exception("Unexpected exception")
         error_str = str(err).lower()
@@ -70,15 +65,24 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
         raise CannotConnect from err
 
+    if stats is None:
+        raise CannotConnect("Unable to fetch data from FranklinWH")
 
-class FranklinWHConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    # Return info that you want to store in the config entry.
+    return {
+        "title": f"FranklinWH {gateway_id[-6:]}",
+        "gateway_id": gateway_id,
+    }
+
+
+class FranklinWHConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for FranklinWH."""
 
     VERSION = 1
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the initial step."""
         errors: dict[str, str] = {}
 
@@ -118,19 +122,19 @@ class FranklinWHConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user", data_schema=data_schema, errors=errors
         )
 
-    async def async_step_reauth(self, entry_data: dict[str, Any]) -> FlowResult:
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
         """Handle reauth when credentials are invalid."""
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle reauth confirmation."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             # Get the existing entry
-            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+            entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])  # type: ignore[typeddict-unknown-key]
             if entry is None:
                 return self.async_abort(reason="reauth_failed")
 
@@ -167,22 +171,18 @@ class FranklinWHConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
+        config_entry: ConfigEntry,
     ) -> FranklinWHOptionsFlow:
         """Get the options flow for this handler."""
-        return FranklinWHOptionsFlow(config_entry)
+        return FranklinWHOptionsFlow()
 
 
-class FranklinWHOptionsFlow(config_entries.OptionsFlow):
+class FranklinWHOptionsFlow(OptionsFlow):
     """Handle options flow for FranklinWH."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
