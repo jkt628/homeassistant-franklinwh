@@ -18,31 +18,32 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 
-from .const import CONF_GATEWAY_ID, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import CONF_GATEWAY_ID, DEFAULT_SCAN_INTERVAL, DOMAIN, MANUFACTURER
 from .utils import get_client
 
 _LOGGER = logging.getLogger(DOMAIN)
 
 
-async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
+async def validate_input(
+    hass: HomeAssistant, data: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Validate the user input allows us to connect.
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
     username = data[CONF_USERNAME]
     password = data[CONF_PASSWORD]
-    gateway_id = data[CONF_GATEWAY_ID]
 
     try:
         _, client = await get_client(
             hass,
             username,
             password,
-            gateway_id,
+            "",
         )
 
         # Try to fetch data to validate credentials and gateway
-        stats = await client.get_stats()
+        gateways = await client.get_home_gateway_list()
     except Exception as err:
         _LOGGER.exception("Unexpected exception")
         error_str = str(err).lower()
@@ -65,14 +66,17 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
         raise CannotConnect from err
 
-    if stats is None:
+    if gateways is None:
         raise CannotConnect("Unable to fetch data from FranklinWH")
 
     # Return info that you want to store in the config entry.
-    return {
-        "title": f"FranklinWH {gateway_id[-6:]}",
-        "gateway_id": gateway_id,
-    }
+    return [
+        {
+            "title": f"{MANUFACTURER} {gateway['id'][-6:]}",
+            CONF_GATEWAY_ID: gateway["id"],
+        }
+        for gateway in gateways
+    ]
 
 
 class FranklinWHConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -87,9 +91,7 @@ class FranklinWHConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Check if already configured
-            await self.async_set_unique_id(user_input[CONF_GATEWAY_ID])
-            self._abort_if_unique_id_configured()
+            self._async_abort_entries_match(user_input)
 
             try:
                 info = await validate_input(self.hass, user_input)
@@ -103,7 +105,19 @@ class FranklinWHConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
-                return self.async_create_entry(title=info["title"], data=user_input)
+                return self.async_create_entry(
+                    title=MANUFACTURER,
+                    data=user_input,
+                    subentries=[
+                        {
+                            "subentry_type": "gateway",
+                            "data": entry,
+                            "title": entry["title"],
+                            "unique_id": entry[CONF_GATEWAY_ID],
+                        }
+                        for entry in info
+                    ],
+                )
 
         # Build the data schema
         # Note: Local API fields are shown but not functional yet
@@ -111,7 +125,6 @@ class FranklinWHConfigFlow(ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_USERNAME): cv.string,
                 vol.Required(CONF_PASSWORD): cv.string,
-                vol.Required(CONF_GATEWAY_ID): cv.string,
                 # Local API not functional yet - fields shown but ignored
                 # vol.Optional(CONF_USE_LOCAL_API, default=False): cv.boolean,
                 # vol.Optional(CONF_LOCAL_HOST): cv.string,

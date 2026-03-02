@@ -11,41 +11,47 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_GATEWAY_ID, DOMAIN, MANUFACTURER, MODEL
+from .const import DOMAIN, MANUFACTURER, MODEL
 from .coordinator import FranklinWHCoordinator
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up FranklinWH switches."""
-    coordinator: FranklinWHCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities: list[SwitchEntity] = [GridSwitch(coordinator, entry)]
+    coordinators: dict[str, FranklinWHCoordinator] = hass.data[DOMAIN][entry.entry_id]
 
-    accessories = await coordinator.client.get_accessories()
-    coordinator.logger.debug("Accessories: %s", accessories)
+    for subentry_id, sub in entry.subentries.items():
+        assert sub.unique_id is not None
+        coordinator = coordinators[sub.unique_id]
+        entities: list[SwitchEntity] = [GridSwitch(coordinator, entry)]
 
-    for accessory in accessories:
-        try:
-            match accessory["accessoryType"]:
-                case AccessoryType.GENERATOR_MODULE.id:
-                    entities.append(FranklinWHGenerator(coordinator, entry))
-                case AccessoryType.SMART_CIRCUITS_MODULE.id:
-                    coordinator.enable("switch_state")
-                    await coordinator.async_request_refresh()
-                    entities.extend(
-                        FranklinWHSmartSwitch(coordinator, entry, switch_id)
-                        for switch_id in range(3)
-                    )
-        except KeyError as err:
-            coordinator.logger.error("Expected key 'accessoryType' not found: %s", err)
+        accessories = await coordinator.client.get_accessories()
+        coordinator.logger.debug("Accessories: %s", accessories)
 
-    async_add_entities(entities)
+        for accessory in accessories:
+            try:
+                match accessory["accessoryType"]:
+                    case AccessoryType.GENERATOR_MODULE.id:
+                        entities.append(FranklinWHGenerator(coordinator, entry))
+                    case AccessoryType.SMART_CIRCUITS_MODULE.id:
+                        coordinator.enable("switch_state")
+                        await coordinator.async_request_refresh()
+                        entities.extend(
+                            FranklinWHSmartSwitch(coordinator, entry, switch_id)
+                            for switch_id in range(3)
+                        )
+            except KeyError as err:
+                coordinator.logger.error(
+                    "Expected key 'accessoryType' not found: %s", err
+                )
+
+        async_add_entities(entities, config_subentry_id=subentry_id)
 
 
 class FranklinWHSmartSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEntity):
@@ -64,7 +70,7 @@ class FranklinWHSmartSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEnti
 
         self._switch_id = switch_id
         self._switch_index = switch_id  # 0-indexed for API
-        gateway_id = entry.data[CONF_GATEWAY_ID]
+        gateway_id = coordinator.client.gateway
 
         # Set unique ID
         self._attr_unique_id = f"{gateway_id}_switch_{switch_id + 1}"
@@ -148,7 +154,7 @@ class GridSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEntity):
         """Initialize the grid switch."""
         super().__init__(coordinator)
 
-        gateway_id = entry.data[CONF_GATEWAY_ID]
+        gateway_id = coordinator.client.gateway
 
         # Set unique ID
         self._attr_unique_id = f"{gateway_id}_grid_switch"
@@ -228,7 +234,7 @@ class FranklinWHGenerator(CoordinatorEntity[FranklinWHCoordinator], SwitchEntity
         """Initialize the generator switch."""
         super().__init__(coordinator)
 
-        gateway_id = entry.data[CONF_GATEWAY_ID]
+        gateway_id = coordinator.client.gateway
 
         # Set unique ID
         self._attr_unique_id = f"{gateway_id}_generator"

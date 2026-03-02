@@ -15,7 +15,6 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
 from .const import (
-    CONF_GATEWAY_ID,
     CONF_LOCAL_HOST,
     CONF_USE_LOCAL_API,
     DOMAIN,
@@ -36,34 +35,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up FranklinWH from a config entry."""
     username = entry.data[CONF_USERNAME]
     password = entry.data[CONF_PASSWORD]
-    gateway_id = entry.data[CONF_GATEWAY_ID]
     use_local_api = entry.data.get(CONF_USE_LOCAL_API, False)
     local_host = entry.data.get(CONF_LOCAL_HOST)
 
-    # Create coordinator
-    coordinator = FranklinWHCoordinator(
-        hass=hass,
-        username=username,
-        password=password,
-        gateway_id=gateway_id,
-        use_local_api=use_local_api,
-        local_host=local_host,
-    )
+    coordinators = {}
 
-    # Fetch initial data
-    try:
-        await coordinator.async_config_entry_first_refresh()
-        coordinator.logger.debug("FranklinWH initial data fetch complete")
-    except ConfigEntryAuthFailed as err:
-        coordinator.logger.error("Authentication failed: %s", err)
-        raise
-    except Exception as err:
-        coordinator.logger.error("Error setting up FranklinWH: %s", err)
-        raise ConfigEntryNotReady from err
+    for sub in entry.subentries.values():
+        assert sub.unique_id is not None
+        gateway_id = sub.unique_id
+        # Create coordinator
+        coordinator = FranklinWHCoordinator(
+            hass=hass,
+            username=username,
+            password=password,
+            gateway_id=gateway_id,
+            use_local_api=use_local_api,
+            local_host=local_host,
+        )
+
+        # Fetch initial data
+        try:
+            await coordinator.async_config_entry_first_refresh()
+            coordinator.logger.debug("FranklinWH initial data fetch complete")
+        except ConfigEntryAuthFailed as err:
+            coordinator.logger.error("Authentication failed: %s", err)
+            raise
+        except Exception as err:
+            coordinator.logger.error("Error setting up FranklinWH: %s", err)
+            raise ConfigEntryNotReady from err
+        coordinators[gateway_id] = coordinator
 
     # Store coordinator
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinators
 
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -3,58 +3,30 @@
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import CONF_GATEWAY_ID, DOMAIN, MANUFACTURER, MODEL
-from .coordinator import FranklinWHCoordinator
+from .select import ModeEnabledEntity
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up FranklinWH selectors."""
-    coordinator: FranklinWHCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities: list[NumberEntity] = [BackupReserve(coordinator, entry)]
-    async_add_entities(entities)
+    """Set up FranklinWH number entities."""
+    await BackupReserve.async_setup_entry(hass, entry, async_add_entities)
 
 
-class BackupReserve(CoordinatorEntity[FranklinWHCoordinator], NumberEntity):
+class BackupReserve(ModeEnabledEntity, NumberEntity):
     """Representation of the FranklinWH backup reserve percentage."""
 
     _attr_has_entity_name = True
+    _attr_name = "Backup Reserve"
+    _unique_id_suffix = "_backup_reserve"
     _attr_min_value = 5  # pyright: ignore[reportAssignmentType]
     _attr_max_value = 100  # pyright: ignore[reportAssignmentType]
     _attr_step = 1  # pyright: ignore[reportAssignmentType]
     _attr_unit_of_measurement = "%"  # pyright: ignore[reportAssignmentType]
-
-    def __init__(
-        self,
-        coordinator: FranklinWHCoordinator,
-        entry: ConfigEntry,
-    ) -> None:
-        """Initialize the backup reserve number entity."""
-        super().__init__(coordinator)
-
-        gateway_id = entry.data[CONF_GATEWAY_ID]
-
-        # Set unique ID
-        self._attr_unique_id = f"{gateway_id}_backup_reserve"
-
-        # Set name
-        self._attr_name = "Backup Reserve"
-
-        # Set device info
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, gateway_id)},
-            name=f"FranklinWH {gateway_id[-6:]}",
-            manufacturer=MANUFACTURER,
-            model=MODEL,
-            sw_version=entry.data.get("sw_version"),
-        )
 
     @property
     def native_value(self) -> float | None:

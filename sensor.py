@@ -17,10 +17,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_GATEWAY_ID, DOMAIN, MANUFACTURER, MODEL
+from .const import DOMAIN, MANUFACTURER, MODEL
 from .coordinator import FranklinWHCoordinator
 
 
@@ -214,34 +214,41 @@ SMART_CIRCUITS_SENSORS: tuple[FranklinWHSensorEntityDescription, ...] = (
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up FranklinWH sensors."""
-    coordinator: FranklinWHCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinators: dict[str, FranklinWHCoordinator] = hass.data[DOMAIN][entry.entry_id]
 
-    def _entities(
-        descriptions: Iterable[FranklinWHSensorEntityDescription],
-    ) -> Iterator[FranklinWHSensorEntity]:
-        for description in descriptions:
-            yield FranklinWHSensorEntity(coordinator, description, entry)
+    for subentry_id, sub in entry.subentries.items():
+        assert sub.unique_id is not None
+        coordinator = coordinators[sub.unique_id]
 
-    entities = list(_entities(GENERIC_SENSORS))
-    entities.append(FranklinWHBatterySensorEntity(coordinator, entry))
+        def _entities(
+            coordinator: FranklinWHCoordinator,
+            descriptions: Iterable[FranklinWHSensorEntityDescription],
+        ) -> Iterator[FranklinWHSensorEntity]:
+            for description in descriptions:
+                yield FranklinWHSensorEntity(coordinator, description, entry)
 
-    accessories = await coordinator.client.get_accessories()
-    coordinator.logger.debug("Accessories: %s", accessories)
+        entities = list(_entities(coordinator, GENERIC_SENSORS))
+        entities.append(FranklinWHBatterySensorEntity(coordinator, entry))
 
-    for accessory in accessories:
-        try:
-            match accessory["accessoryType"]:
-                case AccessoryType.GENERATOR_MODULE.id:
-                    entities.extend(_entities(GENERATOR_SENSORS))
-                case AccessoryType.SMART_CIRCUITS_MODULE.id:
-                    entities.extend(_entities(SMART_CIRCUITS_SENSORS))
-        except KeyError as err:
-            coordinator.logger.error("Expected key 'accessoryType' not found: %s", err)
+        accessories = await coordinator.client.get_accessories()
+        coordinator.logger.debug("Accessories: %s", accessories)
 
-    async_add_entities(entities)
+        for accessory in accessories:
+            try:
+                match accessory["accessoryType"]:
+                    case AccessoryType.GENERATOR_MODULE.id:
+                        entities.extend(_entities(coordinator, GENERATOR_SENSORS))
+                    case AccessoryType.SMART_CIRCUITS_MODULE.id:
+                        entities.extend(_entities(coordinator, SMART_CIRCUITS_SENSORS))
+            except KeyError as err:
+                coordinator.logger.error(
+                    "Expected key 'accessoryType' not found: %s", err
+                )
+
+        async_add_entities(entities, config_subentry_id=subentry_id)
 
 
 class FranklinWHSensorEntity(CoordinatorEntity[FranklinWHCoordinator], SensorEntity):
@@ -260,7 +267,7 @@ class FranklinWHSensorEntity(CoordinatorEntity[FranklinWHCoordinator], SensorEnt
         super().__init__(coordinator)
         self.entity_description = description
 
-        gateway_id = entry.data[CONF_GATEWAY_ID]
+        gateway_id = coordinator.client.gateway
 
         # Set unique ID
         self._attr_unique_id = f"{gateway_id}_{description.key}"
