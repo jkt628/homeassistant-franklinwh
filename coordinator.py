@@ -6,7 +6,7 @@ from datetime import timedelta
 import logging
 from typing import Any, Final
 
-from franklinwh import Client, GridStatus, Mode, Stats, SwitchState, WorkMode
+from franklinwh import Client, GridStatus, Mode, Stats, SwitchState
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -148,7 +148,9 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
     async def async_set_mode(self, value: str) -> None:
         """Set the operating mode."""
-        await self.async_set(self.client.set_mode, Mode.get_by_name(value), value="mode")
+        await self.async_set(
+            self.client.set_mode, Mode.get_by_name(value), value="mode"
+        )
 
     async def async_set_backup_reserve(self, soc: int) -> None:
         """Set the backup reserve."""
