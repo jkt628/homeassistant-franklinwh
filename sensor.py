@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from franklinwh import AccessoryType, RunStatus, Stats
 
@@ -153,60 +153,60 @@ GENERATOR_SENSORS: tuple[FranklinWHSensorEntityDescription, ...] = (
 )
 SMART_CIRCUITS_SENSORS: tuple[FranklinWHSensorEntityDescription, ...] = (
     FranklinWHSensorEntityDescription(
-        key="switch_1_load",
-        name="Switch 1 Load",
-        native_unit_of_measurement=UnitOfPower.WATT,
+        key="switch_1_use",
+        name="{name} Use",
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda stats: stats.current.switch_1_load,
+        value_fn=lambda sc: sc.circuits[1].power,
     ),
     FranklinWHSensorEntityDescription(
         key="switch_1_lifetime_use",
-        name="Switch 1 Lifetime Use",
+        name="{name} Lifetime Use",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=lambda stats: stats.totals.switch_1_use / 1000,
+        value_fn=lambda sc: sc.circuits[1].export_energy,
     ),
     FranklinWHSensorEntityDescription(
-        key="switch_2_load",
-        name="Switch 2 Load",
-        native_unit_of_measurement=UnitOfPower.WATT,
+        key="switch_2_use",
+        name="{name} Use",
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda stats: stats.current.switch_2_load,
+        value_fn=lambda sc: sc.circuits[2].power,
     ),
     FranklinWHSensorEntityDescription(
         key="switch_2_lifetime_use",
-        name="Switch 2 Lifetime Use",
+        name="{name} Lifetime Use",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=lambda stats: stats.totals.switch_2_use / 1000,
+        value_fn=lambda sc: sc.circuits[2].export_energy,
     ),
     FranklinWHSensorEntityDescription(
         key="v2l_use",
-        name="V2L Use",
-        native_unit_of_measurement=UnitOfPower.WATT,
+        name="{name} Use",
+        native_unit_of_measurement=UnitOfPower.KILO_WATT,
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda stats: stats.current.v2l_use,
+        value_fn=lambda sc: sc.circuits[3].power,
     ),
     FranklinWHSensorEntityDescription(
         key="v2l_export",
-        name="V2L Export",
+        name="{name} Export",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=lambda stats: stats.totals.v2l_export / 1000,
+        value_fn=lambda sc: sc.circuits[3].export_energy,
     ),
     FranklinWHSensorEntityDescription(
         key="v2l_import",
-        name="V2L Import",
+        name="{name} Import",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=lambda stats: stats.totals.v2l_import / 1000,
+        value_fn=lambda sc: sc.circuits[3].import_energy,
     ),
 )
 
@@ -242,7 +242,20 @@ async def async_setup_entry(
                     case AccessoryType.GENERATOR_MODULE.id:
                         entities.extend(_entities(coordinator, GENERATOR_SENSORS))
                     case AccessoryType.SMART_CIRCUITS_MODULE.id:
-                        entities.extend(_entities(coordinator, SMART_CIRCUITS_SENSORS))
+                        coordinator.enable("smart_circuits")
+                        sc = await coordinator.client.get_smart_circuits_enhanced()
+                        for c in SMART_CIRCUITS_SENSORS:
+                            if c.key.startswith("v2l_"):
+                                c = replace(c, name = c.name.format(name=sc.circuits[3].name))
+                            elif "_2_" in c.key:
+                                if sc.merged:
+                                    continue  # Skip second circuit sensors if merged
+                                c = replace(c, name = c.name.format(name=sc.circuits[2].name))
+                            elif "_1_" in c.key:
+                                c = replace(c, name = c.name.format(name=sc.circuits[1].name))
+                            entities.append(
+                                FranklinWHCircuitSensorEntity(coordinator, c, entry)
+                            )
             except KeyError as err:
                 coordinator.logger.error(
                     "Expected key 'accessoryType' not found: %s", err
@@ -342,3 +355,27 @@ class FranklinWHBatterySensorEntity(FranklinWHSensorEntity):
                 return "mdi:battery-minus-variant"
             case _:
                 return "mdi:battery-alert"
+
+
+class FranklinWHCircuitSensorEntity(FranklinWHSensorEntity):
+    """Representation of a FranklinWH smart circuit sensor."""
+
+    @property
+    def native_value(self) -> float | int | None:
+        """Return the state of the sensor."""
+        if (
+            self.entity_description.value_fn is None
+            or self.coordinator.data is None
+            or self.coordinator.data.smart_circuits is None
+        ):
+            return None
+
+        try:
+            return self.entity_description.value_fn(
+                self.coordinator.data.smart_circuits
+            )
+        except (AttributeError, TypeError, KeyError) as err:
+            self.coordinator.logger.debug(
+                "Error getting value for %s: %s", self.entity_description.key, err
+            )
+            return None
