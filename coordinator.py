@@ -6,7 +6,7 @@ from datetime import timedelta
 import logging
 from typing import Any, Final
 
-from franklinwh import Client, GridStatus, Mode, Stats, SwitchState
+from franklinwh import Client, GridStatus, Mode, SmartCircuits, Stats
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -20,7 +20,7 @@ class FranklinWHData:
     """Statistics for FranklinWH."""
 
     stats: Stats | None = None
-    switch_state: SwitchState | None = None
+    smart_circuits: SmartCircuits | None = None
     mode: Mode | None = None
 
 
@@ -32,7 +32,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
     _data: Final = {
         "stats": "get_stats",
-        "switch_state": "get_smart_switch_state",
+        "smart_circuits": "get_smart_circuits_enhanced",
         "mode": "get_mode",
     }
     attrs: Final = [field.name for field in fields(FranklinWHData)]
@@ -140,10 +140,10 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
         """Set the grid connection."""
         await self.async_set(self.client.set_grid_status, status, value="grid status")
 
-    async def async_set_switch_state(self, switches: SwitchState) -> None:
-        """Set the state of smart switches."""
+    async def async_set_circuit(self, index: int, on: bool) -> None:
+        """Set a specific circuit."""
         await self.async_set(
-            self.client.set_smart_switch_state, switches, value="switch state", sleep=1
+            self.client.set_circuit, index, on, value="circuit state", sleep=1
         )
 
     async def async_set_mode(self, value: str) -> None:

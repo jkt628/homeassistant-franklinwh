@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from franklinwh import AccessoryType, GridStatus, SwitchState
+from franklinwh import AccessoryType, GridStatus
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
@@ -37,11 +37,12 @@ async def async_setup_entry(
             try:
                 match accessory["accessoryType"]:
                     case AccessoryType.SMART_CIRCUIT_MODULE.value:
-                        coordinator.enable("switch_state")
+                        coordinator.enable("smart_circuits")
                         await coordinator.async_refresh()
                         entities.extend(
                             FranklinWHSmartSwitch(coordinator, entry, switch_id)
-                            for switch_id in range(3)
+                            for switch_id, v in enumerate(coordinator.data.smart_circuits.circuits)
+                            if v is not None
                         )
                     case AccessoryType.GENERATOR_MODULE.value:
                         entities.append(FranklinWHGenerator(coordinator, entry))
@@ -67,15 +68,17 @@ class FranklinWHSmartSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEnti
         """Initialize the switch."""
         super().__init__(coordinator)
 
-        self._switch_id = switch_id
-        self._switch_index = switch_id  # 0-indexed for API
+        self._switch_index = switch_id
         gateway_id = coordinator.client.gateway
 
         # Set unique ID
-        self._attr_unique_id = f"{gateway_id}_switch_{switch_id + 1}"
+        self._attr_unique_id = f"{gateway_id}_switch_{switch_id}"
 
         # Set name
-        self._attr_name = f"Switch {switch_id + 1}"
+        self._attr_name = (
+            coordinator.data.smart_circuits.circuits[switch_id].name
+            or f"Circuits {switch_id}"
+        )
 
         # Set device info
         self._attr_device_info = DeviceInfo(
@@ -89,12 +92,9 @@ class FranklinWHSmartSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEnti
     @property
     def is_on(self) -> bool | None:
         """Return true if the switch is on."""
-        if self.coordinator.data is None or self.coordinator.data.switch_state is None:
-            return None
-
         try:
-            return self.coordinator.data.switch_state[self._switch_index]
-        except (IndexError, TypeError):
+            return self.coordinator.data.smart_circuits.circuits[self._switch_index].on
+        except (IndexError, KeyError, TypeError):
             return None
 
     @property
@@ -103,32 +103,26 @@ class FranklinWHSmartSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEnti
         return (
             super().available
             and self.coordinator.data is not None
-            and self.coordinator.data.switch_state is not None
+            and self.coordinator.data.smart_circuits is not None
         )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
-        switches: list[bool | None] = [None, None, None]
-        switches[self._switch_index] = True
-
         try:
-            await self.coordinator.async_set_switch_state(SwitchState(switches))
+            await self.coordinator.async_set_circuit(self._switch_index, True)
         except Exception as err:
             self.coordinator.logger.error(
-                "Failed to turn on switch %d: %s", self._switch_id + 1, err
+                "Failed to turn on switch %d: %s", self._switch_index, err
             )
             raise
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
-        switches: list[bool | None] = [None, None, None]
-        switches[self._switch_index] = False
-
         try:
-            await self.coordinator.async_set_switch_state(SwitchState(switches))
+            await self.coordinator.async_set_circuit(self._switch_index, False)
         except Exception as err:
             self.coordinator.logger.error(
-                "Failed to turn off switch %d: %s", self._switch_id + 1, err
+                "Failed to turn off switch %d: %s", self._switch_index, err
             )
             raise
 
