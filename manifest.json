@@ -1,14 +1,13 @@
 {
-  "domain": "franklin_wh",
+  "domain": "homeassistant-franklinwh",
   "name": "FranklinWH",
-  "config_flow": true,
   "codeowners": ["@richo", "@JoshuaSeidel", "@jkt628"],
+  "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/richo/homeassistant-franklinwh/wiki",
-  "iot_class": "cloud_polling",
   "integration_type": "hub",
-  "requirements": ["franklinwh>=1.0.0"],
-  "version": "0.5.0",
+  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/richo/homeassistant-franklinwh/issues",
-  "loggers": ["franklinwh"]
+  "requirements": ["franklinwh==2026.3.*"],
+  "version": "2026.3.0"
 }

@@ -2,7 +2,7 @@
 
 from typing import Final
 
-DOMAIN: Final = "franklin_wh"
+DOMAIN: Final = "homeassistant-franklinwh"
 
 # Configuration
 CONF_GATEWAY_ID: Final = "gateway_id"
