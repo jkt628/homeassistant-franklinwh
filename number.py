@@ -29,7 +29,7 @@ class BackupReserve(ModeEnabledEntity, NumberEntity):
     _attr_unit_of_measurement = "%"  # pyright: ignore[reportAssignmentType]
 
     @property
-    def value(self) -> float | None:
+    def native_value(self) -> float | None:
         """Return the current backup reserve percentage."""
         if self.coordinator.data is None or self.coordinator.data.mode is None:
             return None
