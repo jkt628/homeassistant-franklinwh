@@ -1,6 +1,7 @@
 """Switch platform for FranklinWH integration."""
 
-from __future__ import annotations
+# must work with Python >= 3.13
+from __future__ import annotations  # noqa: RUF100, TID251
 
 from typing import Any
 
@@ -41,8 +42,7 @@ async def async_setup_entry(
                         await coordinator.async_refresh()
                         entities.extend(
                             FranklinWHSmartSwitch(coordinator, entry, switch_id)
-                            for switch_id, v in enumerate(coordinator.data.smart_circuits.circuits)
-                            if v is not None
+                            for switch_id in coordinator.data.smart_circuits.circuits
                         )
                     case AccessoryType.GENERATOR_MODULE.value:
                         entities.append(FranklinWHGenerator(coordinator, entry))
@@ -94,7 +94,7 @@ class FranklinWHSmartSwitch(CoordinatorEntity[FranklinWHCoordinator], SwitchEnti
         """Return true if the switch is on."""
         try:
             return self.coordinator.data.smart_circuits.circuits[self._switch_index].on
-        except (IndexError, KeyError, TypeError):
+        except IndexError, KeyError, TypeError:
             return None
 
     @property

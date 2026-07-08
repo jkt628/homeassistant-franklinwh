@@ -1,6 +1,7 @@
 """Sensor platform for FranklinWH integration."""
 
-from __future__ import annotations
+# must work with Python >= 3.13
+from __future__ import annotations  # noqa: RUF100, TID251
 
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
@@ -243,6 +244,7 @@ async def async_setup_entry(
             try:
                 match accessory["accessoryType"]:
                     case AccessoryType.SMART_CIRCUIT_MODULE.value:
+                        coordinator.enable("smart_circuits")
                         sc = await coordinator.client.get_smart_circuits_enhanced()
                         for c in SMART_CIRCUIT_SENSORS:
                             if c.key.startswith("v2l_"):
