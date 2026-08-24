@@ -37,7 +37,7 @@ async def async_setup_entry(
     for accessory in accessories:
         try:
             match accessory["accessoryType"]:
-                case AccessoryType.SMART_CIRCUIT_MODULE.value:
+                case AccessoryType.SMART_CIRCUITS_MODULE.id:
                     entities.extend(
                         FranklinWHSmartSwitch(coordinator, entry, switch_id)
                         for switch_id in range(3)
