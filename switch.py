@@ -35,6 +35,8 @@ async def async_setup_entry(
         try:
             match accessory["accessoryType"]:
                 case AccessoryType.SMART_CIRCUITS_MODULE.id:
+                    coordinator.enable("switch_state")
+                    await coordinator.async_request_refresh()
                     entities.extend(
                         FranklinWHSmartSwitch(coordinator, entry, switch_id)
                         for switch_id in range(3)

@@ -1,9 +1,11 @@
 """DataUpdateCoordinator for FranklinWH."""
 
-from __future__ import annotations
-
+import asyncio
+from dataclasses import dataclass
 from datetime import timedelta
 import logging
+import sys
+from typing import Final
 
 from franklinwh import Client, Mode, Stats
 
@@ -15,40 +17,46 @@ from .const import DEFAULT_LOCAL_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
 from .utils import get_client
 
 
+@dataclass
 class FranklinWHData:
-    """Class to hold FranklinWH data."""
+    """Statistics for FranklinWH."""
 
-    def __init__(
-        self, stats: Stats, switch_state: tuple[bool, bool, bool] | None = None
-    ) -> None:
-        """Initialize the data class."""
-        self.stats = stats
-        self.switch_state = switch_state or (False, False, False)
+    stats: Stats | None = None
+    switch_state: tuple[bool, bool, bool] | None = None
 
 
 class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
-    """Class to manage fetching FranklinWH data."""
+    """Fetch FranklinWH data.
+
+    This class always produces stats and optionally other attributes when enabled.
+    """
+
+    _data: Final = {
+        "stats": "get_stats",
+        "switch_state": "get_smart_switch_state",
+    }
+
+    @staticmethod
+    async def disabled() -> None:
+        """Placeholder for disabled method."""
+        return
 
     def __init__(
         self,
+        *,
         hass: HomeAssistant,
         username: str,
         password: str,
         gateway_id: str,
         use_local_api: bool = False,
         local_host: str | None = None,
+        max_failures: int = 3,
     ) -> None:
         """Initialize the coordinator."""
-        self.username = username
-        self.password = password
-        self.gateway_id = gateway_id
-        self.use_local_api = use_local_api
-        self.local_host = local_host
-
-        # Store credentials for lazy client initialization
-        # Client will be created in executor during first update to avoid blocking
-        self.client: Client = None  # type: ignore  # noqa: PGH003
-        self._client_lock = False
+        if max_failures == -1:
+            max_failures = sys.maxsize
+        elif max_failures > 60:
+            raise ValueError("max_failures must be between-1 (infinite) and 60")
 
         # Set update interval based on API type
         update_interval = (
@@ -65,84 +73,65 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             always_update=False,
         )
 
+        # Store credentials for lazy client initialization
+        self.username = username
+        self.password = password
+        self.gateway_id = gateway_id
+        self.use_local_api = use_local_api
+        self.local_host = local_host
+        self.client: Client = None  # type: ignore  # noqa: PGH003
+        self._client_lock = asyncio.Lock()
+
         # Track consecutive failures
         self._consecutive_failures = 0
-        self._max_failures = 3
+        self._max_failures = max_failures
+
+        # Track dynamic stats
+        self._methods = [self.disabled for _ in self._data]
+        self._enabled = []
+
+    def enable(self, attr: str) -> None:
+        """Produce an attribute during data fetch."""
+        if attr not in self._data:
+            raise ValueError(f"Attribute '{attr}' is not a valid data attribute")
+        if attr not in self._enabled:
+            self._enabled.append(attr)
+        for i, k in enumerate(self._data):
+            if k in self._enabled:
+                self._methods[i] = getattr(self.client, self._data[k])
 
     async def _async_update_data(self) -> FranklinWHData:
         """Fetch data from FranklinWH API."""
         try:
             # Initialize client on first run (in executor to avoid blocking)
-            if self.client is None and not self._client_lock:
-                self._client_lock = True
-                try:
-                    _, self.client = await get_client(
-                        self.hass,
-                        self.username,
-                        self.password,
-                        self.gateway_id,
-                    )
-                    await self.client.refresh_token()
-                except Exception as err:
-                    self._client_lock = False
-                    raise UpdateFailed(f"Failed to initialize client: {err}") from err
+            if self.client is None:
+                async with self._client_lock:
+                    try:
+                        _, self.client = await get_client(
+                            self.hass,
+                            self.username,
+                            self.password,
+                            self.gateway_id,
+                        )
+                    except Exception as err:
+                        raise UpdateFailed(
+                            f"Failed to initialize client: {err}"
+                        ) from err
+                    self.enable("stats")
 
-            # Fetch stats
-            stats = await self.client.get_stats()
-
-            if stats is None or stats.current is None:
-                raise UpdateFailed("Failed to fetch stats from FranklinWH API")
-
-            self.logger.debug(
-                "Stats fetched - SOC: %s%%, Solar: %skW, Grid: %skW",
-                getattr(stats.current, "battery_soc", "N/A"),
-                getattr(stats.current, "solar_production", "N/A"),
-                getattr(stats.current, "grid_use", "N/A"),
-            )
-
-            # Fetch switch state (async method in franklinwh 1.0.0+)
-            try:
-                switch_state = await self.client.get_smart_switch_state()
-            except Exception as err:
-                self.logger.debug("Failed to fetch switch state: %s", err)
-                switch_state = None
+            # Fetch data attributes
+            tasks = [function() for function in self._methods]
+            results = await asyncio.gather(*tasks)
 
             # Reset failure counter on success
             self._consecutive_failures = 0
 
-            return FranklinWHData(stats=stats, switch_state=switch_state)
-
-        except AttributeError as err:
-            # Handle case where AuthenticationError doesn't exist in franklinwh
-            if "AuthenticationError" in str(type(err)):
-                raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
-
-            # Increment failure counter
-            self._consecutive_failures += 1
-            self.logger.warning(
-                "API error (attempt %d/%d): %s",
-                self._consecutive_failures,
-                self._max_failures,
-                err,
-            )
-
-            # Only raise UpdateFailed after max failures
-            # This keeps entities available with last known data
-            if self._consecutive_failures >= self._max_failures:
-                self.logger.error(
-                    "Max consecutive failures reached, marking unavailable"
-                )
-                raise UpdateFailed(f"Error communicating with API: {err}") from err
-
-            # Return last known data to keep entities available
-            if self.data:
-                self.logger.debug("Returning last known data due to temporary failure")
-                return self.data
-            raise UpdateFailed(f"Error communicating with API: {err}") from err
+            return FranklinWHData(*results)
 
         except Exception as err:
+            text = str(err).lower()
             # Check if it's an authentication-related error
-            if "auth" in str(err).lower() or "token" in str(err).lower():
+            if "auth" in text or "token" in text:
                 raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
 
             # Increment failure counter
@@ -159,6 +148,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
                 self.logger.error(
                     "Max consecutive failures reached, marking unavailable"
                 )
+                self.client = None  # force reinitialization on next update
                 raise UpdateFailed(f"Error communicating with API: {err}") from err
 
             # Return last known data to keep entities available
