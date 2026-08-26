@@ -9,5 +9,12 @@ jobs:
     name: Run Hassfest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - name: relocate
+        run: |
+          set -vx
+          grep 'content_in_root.*true' hacs.json || exit 0
+          domain=$(sed -n '/"domain"/{s///; s/[^a-z_]//g; p}' manifest.json)
+          mkdir -p custom_components/${domain}
+          find . -maxdepth 1 -not -name 'custom_components' -not -name '.' -not -name '.git' -not -name '.github' -exec mv {} custom_components/${domain} \;
       - uses: home-assistant/actions/hassfest@master
