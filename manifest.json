@@ -9,6 +9,6 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/jkt628/homeassistant-franklinwh/issues",
   "loggers": ["franklin_wh"],
-  "requirements": ["git+https://github.com/jkt628/franklinwh-python#franklinwh>=2026.9.0"],
-  "version": "2026.9.0"
+  "requirements": ["git+https://github.com/jkt628/franklinwh-python#franklinwh>=2026.9.2"],
+  "version": "2026.9.2"
 }

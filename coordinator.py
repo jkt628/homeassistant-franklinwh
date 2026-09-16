@@ -14,6 +14,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DEFAULT_LOCAL_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .data import MessageStats
 from .utils import get_client
 
 
@@ -22,6 +23,7 @@ class FranklinWHData:
     """Statistics for FranklinWH."""
 
     stats: Stats | None = None
+    messages: MessageStats | None = None
     mode: Mode | None = None
     smart_circuits: SmartCircuits | None = None
 
@@ -32,12 +34,15 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
     This class always produces stats, mode and optionally other attributes when enabled.
     """
 
-    # MUST align with FranklinWHData
     _data: Final = {
         "stats": "get_stats",
+        "messages": "get_message_stats",
         "mode": "get_mode",
         "smart_circuits": "get_smart_circuits_enhanced",
     }
+    assert list(_data.keys()) == list(FranklinWHData.__annotations__.keys()), (
+        "_data keys must match FranklinWHData attributes"
+    )
 
     @staticmethod
     async def disabled() -> None:
@@ -93,12 +98,13 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
         self._methods = [self.disabled for _ in self._data]
         self._enabled = []
 
-    def enable(self, attr: str) -> None:
+    def enable(self, *args: str) -> None:
         """Produce an attribute during data fetch."""
-        if attr not in self._data:
-            raise ValueError(f"Attribute '{attr}' is not a valid data attribute")
-        if attr not in self._enabled:
-            self._enabled.append(attr)
+        for attr in args:
+            if attr not in self._data:
+                raise ValueError(f"Attribute '{attr}' is not a valid data attribute")
+            if attr not in self._enabled:
+                self._enabled.append(attr)
         for i, k in enumerate(self._data):
             if k in self._enabled:
                 self._methods[i] = getattr(self.client, self._data[k])
@@ -120,8 +126,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
                         raise UpdateFailed(
                             f"Failed to initialize client: {err}"
                         ) from err
-                    self.enable("stats")
-                    self.enable("mode")
+                    self.enable("stats", "messages", "mode")
 
             # Fetch data attributes
             tasks = [function() for function in self._methods]

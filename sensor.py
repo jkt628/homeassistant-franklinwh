@@ -131,6 +131,19 @@ GENERIC_SENSORS: tuple[FranklinWHSensorEntityDescription, ...] = (
         value_fn=lambda stats: stats.totals.solar,
     ),
 )
+MESSAGE_SENSORS: tuple[FranklinWHSensorEntityDescription, ...] = (
+    FranklinWHSensorEntityDescription(
+        key="unread_messages",
+        name="Unread Messages",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda messages: messages.unread,
+    ),
+    FranklinWHSensorEntityDescription(
+        key="last_message",
+        name="Last Message",
+        value_fn=lambda messages: messages.last,
+    ),
+)
 GENERATOR_SENSORS: tuple[FranklinWHSensorEntityDescription, ...] = (
     FranklinWHSensorEntityDescription(
         key="generator_use",
@@ -224,12 +237,16 @@ async def async_setup_entry(
         def _entities(
             coordinator: FranklinWHCoordinator,
             descriptions: Iterable[FranklinWHSensorEntityDescription],
+            cls: type[FranklinWHSensorEntity] = FranklinWHSensorEntity,
         ) -> Iterator[FranklinWHSensorEntity]:
             for description in descriptions:
-                yield FranklinWHSensorEntity(coordinator, description, entry)
+                yield cls(coordinator, description, entry)
 
         entities = list(_entities(coordinator, GENERIC_SENSORS))
         entities.append(FranklinWHBatterySensorEntity(coordinator, entry))
+        entities.extend(
+            _entities(coordinator, MESSAGE_SENSORS, FranklinWHMessageSensorEntity)
+        )
 
         accessories = await coordinator.client.get_accessories()
         coordinator.logger.debug("Accessories: %s", accessories)
@@ -244,13 +261,19 @@ async def async_setup_entry(
                         sc = await coordinator.client.get_smart_circuits_enhanced()
                         for c in SMART_CIRCUITS_SENSORS:
                             if c.key.startswith("v2l_"):
-                                c = replace(c, name = c.name.format(name=sc.circuits[3].name))
+                                c = replace(
+                                    c, name=c.name.format(name=sc.circuits[3].name)
+                                )
                             elif "_2_" in c.key:
                                 if sc.merged:
                                     continue  # Skip second circuit sensors if merged
-                                c = replace(c, name = c.name.format(name=sc.circuits[2].name))
+                                c = replace(
+                                    c, name=c.name.format(name=sc.circuits[2].name)
+                                )
                             elif "_1_" in c.key:
-                                c = replace(c, name = c.name.format(name=sc.circuits[1].name))
+                                c = replace(
+                                    c, name=c.name.format(name=sc.circuits[1].name)
+                                )
                             entities.append(
                                 FranklinWHCircuitSensorEntity(coordinator, c, entry)
                             )
@@ -377,3 +400,30 @@ class FranklinWHCircuitSensorEntity(FranklinWHSensorEntity):
                 "Error getting value for %s: %s", self.entity_description.key, err
             )
             return None
+
+
+class FranklinWHMessageSensorEntity(FranklinWHSensorEntity):
+    """Representation of a FranklinWH message sensor."""
+
+    @property
+    def native_value(self) -> float | int | None:
+        """Return the state of the sensor."""
+        if (
+            self.entity_description.value_fn is None
+            or self.coordinator.data is None
+            or self.coordinator.data.messages is None
+        ):
+            return None
+
+        try:
+            return self.entity_description.value_fn(self.coordinator.data.messages)
+        except (AttributeError, TypeError, KeyError) as err:
+            self.coordinator.logger.debug(
+                "Error getting value for %s: %s", self.entity_description.key, err
+            )
+            return None
+
+    @property
+    def icon(self) -> str:
+        """Return the entity's icon."""
+        return "mdi:email-plus" if self.native_value else "mdi:email-outline"
