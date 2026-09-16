@@ -5,8 +5,6 @@ Originally inspired by @richo's homeassistant-franklinwh integration.
 Uses the franklinwh-python library by @richo.
 """
 
-from __future__ import annotations
-
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry

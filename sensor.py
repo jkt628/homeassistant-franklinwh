@@ -1,7 +1,5 @@
 """Sensor platform for FranklinWH integration."""
 
-from __future__ import annotations
-
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, replace
 

@@ -1,7 +1,5 @@
 """Switch platform for FranklinWH integration."""
 
-from __future__ import annotations
-
 import asyncio
 from typing import Any
 
@@ -94,7 +92,7 @@ class FranklinWHSmartCircuit(CoordinatorEntity[FranklinWHCoordinator], SwitchEnt
         """Is the switch on?"""
         try:
             return self.coordinator.data.smart_circuits.circuits[self._switch_index].on
-        except (IndexError, KeyError, TypeError):
+        except IndexError, KeyError, TypeError:
             return None
 
     @property
