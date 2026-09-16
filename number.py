@@ -23,10 +23,10 @@ class BackupReserve(ModeEnabledEntity, NumberEntity):
     _attr_has_entity_name = True
     _attr_name = "Backup Reserve"
     _unique_id_suffix = "_backup_reserve"
-    _attr_min_value = 5  # pyright: ignore[reportAssignmentType]
-    _attr_max_value = 100  # pyright: ignore[reportAssignmentType]
-    _attr_step = 1  # pyright: ignore[reportAssignmentType]
-    _attr_unit_of_measurement = "%"  # pyright: ignore[reportAssignmentType]
+    _attr_native_min_value = 5.0
+    _attr_native_max_value = 100.0
+    _attr_native_step = 1.0
+    _attr_native_unit_of_measurement = "%"
 
     @property
     def native_value(self) -> float | None:
