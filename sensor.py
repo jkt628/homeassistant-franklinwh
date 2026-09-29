@@ -20,6 +20,15 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MANUFACTURER, MODEL
 from .coordinator import FranklinWHCoordinator
+from .data import MessageStats
+
+
+def format_message(message: MessageStats) -> str:
+    """Format the message for display."""
+    r = f"{message.gateway_name}: {message.title}: {message.content}"
+    if message.notice:
+        r += f"  {message.notice}"
+    return r
 
 
 @dataclass(frozen=True)
@@ -139,9 +148,14 @@ MESSAGE_SENSORS: tuple[FranklinWHSensorEntityDescription, ...] = (
         value_fn=lambda messages: messages.unread,
     ),
     FranklinWHSensorEntityDescription(
+        key="last_title",
+        name="Last Title",
+        value_fn=lambda messages: messages.title,
+    ),
+    FranklinWHSensorEntityDescription(
         key="last_message",
         name="Last Message",
-        value_fn=lambda messages: messages.last,
+        value_fn=format_message,
     ),
 )
 GENERATOR_SENSORS: tuple[FranklinWHSensorEntityDescription, ...] = (

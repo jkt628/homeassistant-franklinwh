@@ -21,7 +21,23 @@ class MessageStatsClient(franklinwh.Client):
         """Fetch message statistics from FranklinWH."""
         tasks = [self.get_unread_message_count(), self.get_messages()]
         unread, last = await asyncio.gather(*tasks)
-        return MessageStats(unread=unread, last=last[0]["title"] if last else "")
+        if not last:
+            return MessageStats(
+                unread=unread,
+                gateway_id="",
+                gateway_name="",
+                title="",
+                content="",
+                notice="",
+            )
+        return MessageStats(
+            unread=unread,
+            gateway_id=last[0]["gatewayId"],
+            gateway_name=last[0]["gatewayName"],
+            title=last[0]["title"],
+            content=last[0]["content"],
+            notice=last[0]["notice"],
+        )
 
 
 async def get_client(
