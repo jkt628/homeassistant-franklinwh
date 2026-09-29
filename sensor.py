@@ -405,6 +405,22 @@ class FranklinWHCircuitSensorEntity(FranklinWHSensorEntity):
 class FranklinWHMessageSensorEntity(FranklinWHSensorEntity):
     """Representation of a FranklinWH message sensor."""
 
+    def __init__(
+        self,
+        coordinator: FranklinWHCoordinator,
+        description: FranklinWHSensorEntityDescription,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, description, entry)
+
+        # Override unique ID
+        self._attr_unique_id = description.key
+
+        # Override device info
+        self._attr_device_info["identifiers"] = {(DOMAIN)}
+        self._attr_device_info["name"] = "FranklinWH"
+
     @property
     def native_value(self) -> float | int | None:
         """Return the state of the sensor."""
