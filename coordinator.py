@@ -14,8 +14,23 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DEFAULT_LOCAL_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
-from .data import MessageStats
+from .data import Message, MessageStats
 from .utils import get_client
+
+
+def terminate(s: str) -> str:
+    """Terminate a string with a period if it doesn't already have one."""
+    if not s.endswith("."):
+        s += "."
+    return s
+
+
+def format_message(message: Message) -> str:
+    """Format the message for display."""
+    r = f"{message['gatewayId']}: {terminate(message['title'])}\n{terminate(message['content'])}"
+    if message["notice"]:
+        r += f"\n{terminate(message['notice'])}"
+    return r
 
 
 @dataclass
@@ -109,24 +124,26 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             if k in self._enabled:
                 self._methods[i] = getattr(self.client, self._data[k])
 
+    async def _async_set_client(self) -> None:
+        """Set the API client."""
+        if self.client is None:
+            async with self._client_lock:
+                try:
+                    _, self.client = await get_client(
+                        self.hass,
+                        self.username,
+                        self.password,
+                        self.gateway_id,
+                    )
+                except Exception as err:
+                    raise UpdateFailed(f"Failed to initialize client: {err}") from err
+                self.enable("stats", "messages", "mode")
+
     async def _async_update_data(self) -> FranklinWHData:
         """Fetch data from FranklinWH API."""
         try:
             # Initialize client on first run (in executor to avoid blocking)
-            if self.client is None:
-                async with self._client_lock:
-                    try:
-                        _, self.client = await get_client(
-                            self.hass,
-                            self.username,
-                            self.password,
-                            self.gateway_id,
-                        )
-                    except Exception as err:
-                        raise UpdateFailed(
-                            f"Failed to initialize client: {err}"
-                        ) from err
-                    self.enable("stats", "messages", "mode")
+            await self._async_set_client()
 
             # Fetch data attributes
             tasks = [function() for function in self._methods]
@@ -174,8 +191,8 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             await func(*args, **kwargs)
             await asyncio.sleep(sleep)
             await self.async_request_refresh()
-        except Exception as err:
-            self.logger.error("Failed to set %s: %s", value, err)
+        except Exception:
+            self.logger.exception("Failed to set %s", value)
             raise
 
     async def async_set_generator(self, enabled: bool) -> None:
@@ -203,35 +220,47 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
             self.client.set_backup_reserve, soc, value="backup reserve"
         )
 
+    async def async_get_messages(self, count: int) -> list[str]:
+        """Get the latest messages from the system."""
+        try:
+            await self._async_set_client()
+            messages = await self.client.get_messages(count)
+            self.logger.debug("Retrieved %d messages", len(messages))
+            return [format_message(msg) for msg in messages]
+        except Exception:
+            self.logger.exception("Failed to get messages")
+            raise
+
+    # Map string operation_mode to Mode factory methods
+    _operation_modes: Final[dict[str, callable[None, Mode]]] = {
+        "self_use": Mode.self_consumption,
+        "backup": Mode.emergency_backup,
+        "time_of_use": Mode.time_of_use,
+        # Note: clean_backup mode from Home Assistant services.yaml
+        # Maps to emergency_backup as the library doesn't have a separate clean_backup mode
+        "clean_backup": Mode.emergency_backup,
+    }
+
     async def async_set_operation_mode(self, mode: str) -> None:
         """Set the operation mode of the system."""
+        # Each mode gets a default reserve of 20% except emergency_backup (100%)
+
+        if mode not in self._operation_modes:
+            raise ValueError(f"Invalid mode: {mode}")
+
+        # Create mode object with default SOC
+        mode_obj = self._operation_modes[mode]()
+
         try:
-            # Map string mode to Mode factory methods
-            # Each mode gets a default reserve of 20% except emergency_backup (100%)
-            mode_map = {
-                "self_use": Mode.self_consumption,
-                "backup": Mode.emergency_backup,
-                "time_of_use": Mode.time_of_use,
-                # Note: clean_backup mode from Home Assistant services.yaml
-                # Maps to emergency_backup as the library doesn't have a separate clean_backup mode
-                "clean_backup": Mode.emergency_backup,
-            }
-
-            if mode not in mode_map:
-                raise ValueError(f"Invalid mode: {mode}")
-
-            # Create mode object with default SOC
-            mode_obj = mode_map[mode]()
-
             # Set the mode via API (async method in franklinwh 1.0.0+)
             await self.client.set_mode(mode_obj)
-
-            # Request immediate refresh
-            await self.async_request_refresh()
-            self.logger.info("Successfully set operation mode to %s", mode)
-        except Exception as err:
-            self.logger.error("Failed to set operation mode to %s: %s", mode, err)
+        except Exception:
+            self.logger.exception("Failed to set operation mode to %s", mode)
             raise
+
+        # Request immediate refresh
+        await self.async_request_refresh()
+        self.logger.info("Successfully set operation mode to %s", mode)
 
     async def async_set_battery_reserve(self, reserve_percent: int) -> None:
         """Set the battery reserve percentage.
@@ -241,33 +270,15 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
         determined, it defaults to self_consumption mode.
         """
         try:
-            # Try to get the current mode to preserve it (async method in franklinwh 1.0.0+)
-            try:
-                current_mode = await self.client.get_mode()
-                self.logger.debug("Current mode retrieved: %s", current_mode)
-            except Exception as err:
-                self.logger.warning(
-                    "Could not retrieve current mode, defaulting to self_consumption: %s",
-                    err,
-                )
-                current_mode = None
-
-            # Create new mode with updated SOC
-            # Note: We need to detect the current mode type to preserve it
-            # For now, we default to self_consumption if we can't determine the mode
-            # TODO: Add mode type detection when the API provides mode information
-            mode_obj = Mode.self_consumption(soc=reserve_percent)
-
-            # Async method in franklinwh 1.0.0+
-            await self.client.set_mode(mode_obj)
+            await self.client.set_backup_reserve(reserve_percent)
 
             # Request immediate refresh
             await self.async_request_refresh()
             self.logger.info(
                 "Successfully set battery reserve to %d%%", reserve_percent
             )
-        except Exception as err:
-            self.logger.error(
-                "Failed to set battery reserve to %d%%: %s", reserve_percent, err
+        except Exception:
+            self.logger.exception(
+                "Failed to set battery reserve to %d%%", reserve_percent
             )
             raise

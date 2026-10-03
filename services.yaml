@@ -1,5 +1,20 @@
 # Services for FranklinWH integration
 
+get_messages:
+  name: Get Messages
+  description: Retrieve messages from the FranklinWH system.
+  fields:
+    count:
+      name: Count
+      description: Number of messages to retrieve.
+      required: false
+      example: 5
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: slider
+
 set_operation_mode:
   name: Set Operation Mode
   description: Set the operation mode of the FranklinWH system.
@@ -36,4 +51,3 @@ set_battery_reserve:
           max: 100
           unit_of_measurement: "%"
           mode: slider
-

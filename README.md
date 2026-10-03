@@ -115,12 +115,13 @@ After setup, all entities will be organized under a single **FranklinWH** device
 | **Generator Use** | Generator power output (live) | kW |
 | **Generator Energy** | Total generator energy produced | kWh |
 | **Circuits 1 Use** | Power draw on Switch 1 | kW |
-| **Switch 1 Lifetime Use** | Total energy used by Switch 1 | kWh |
+| **Circuits 1 Lifetime Use** | Total energy used by Switch 1 | kWh |
 | **Circuits 2 Use** | Power draw on Switch 2 | kW |
 | **Circuits 2 Lifetime Use** | Total energy used by Switch 2 | kWh |
 | **Circuits 3 Use** | Power draw on Switch 3 | kW |
 | **Circuits 3 Import** | Total energy drawn from Circuits 3 | kWh |
 | **Circuits 3 Export** | Total energy delivered to Circuits 3 | kWh |
+| **Unread Messages** | Count of unread messages | count |
 
 ### Controls (some depend on installation accessories and configuration)
 
@@ -136,13 +137,32 @@ After setup, all entities will be organized under a single **FranklinWH** device
 
 ______________________________________________________________________
 
-## 🔧 Services (deprecated in favor of Operating Mode and Backup Reserve controls)
+## 🔧 Services
 
 The integration provides custom services for advanced control:
+
+### `franklin_wh.get_messages
+
+Get last messages
+
+**Parameters:**
+
+- `count`: Number of messages to retrieve (1-10)
+
+**Example:**
+
+```yaml
+service: franklin_wh.get_messages
+data:
+  count: 1
+```
 
 ### `franklin_wh.set_operation_mode`
 
 Set the operation mode of your FranklinWH system.
+
+> [!WARNING]
+> Deprecated in favor of `Operating Mode` control.
 
 **Parameters:**
 
@@ -160,6 +180,9 @@ data:
 
 Set the minimum battery reserve percentage.
 
+> [!WARNING]
+> Deprecated in favor of `Backup Reserve` control.
+
 **Parameters:**
 
 - `reserve_percent`: Minimum battery charge to maintain (0-100)
@@ -170,6 +193,38 @@ Set the minimum battery reserve percentage.
 service: franklin_wh.set_battery_reserve
 data:
   reserve_percent: 20
+```
+
+______________________________________________________________________
+
+## Action to retrieve latest unread messages
+
+```yaml
+alias: FranklinWH unread -> notification
+description: 'Notify latest unread messages'
+triggers:
+  - trigger: state
+    entity_id:
+      - sensor.franklinwh_unread_messages
+conditions:
+  - condition: numeric_state
+    entity_id: sensor.franklinwh_unread_messages
+    above: 0
+actions:
+  - sequence:
+      - action: franklin_wh.get_messages
+        metadata: {}
+        data:
+          count: >-
+            {{ clamp(states("sensor.franklinwh_unread_messages") | int, 1, 10) }}
+        response_variable: unread
+      - action: persistent_notification.create
+        metadata: {}
+        data:
+          title: FranklinWH Unread
+          message: >-
+            {{ unread.messages | join("<br>") }}
+mode: single
 ```
 
 ______________________________________________________________________
@@ -386,6 +441,6 @@ This integration is not affiliated with, endorsed by, or supported by FranklinWH
 
 ______________________________________________________________________
 
-**Enjoy your FranklinWH integration! 🎉**
+## 🎉 **Enjoy your FranklinWH integration!**
 
 For support, please open an issue on [GitHub](https://github.com/jkt628/homeassistant-franklinwh/issues).
