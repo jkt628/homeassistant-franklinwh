@@ -1,7 +1,5 @@
 """Utilities for FranklinWH integration."""
 
-import asyncio
-
 import franklinwh
 import httpx
 
@@ -19,24 +17,9 @@ class MessageStatsClient(franklinwh.Client):
 
     async def get_message_stats(self) -> MessageStats:
         """Fetch message statistics from FranklinWH."""
-        tasks = [self.get_unread_message_count(), self.get_messages()]
-        unread, last = await asyncio.gather(*tasks)
-        if not last:
-            return MessageStats(
-                unread=unread,
-                gateway_id="",
-                gateway_name="",
-                title="",
-                content="",
-                notice="",
-            )
+        unread = await self.get_unread_message_count()
         return MessageStats(
             unread=unread,
-            gateway_id=last[0]["gatewayId"],
-            gateway_name=last[0]["gatewayName"],
-            title=last[0]["title"],
-            content=last[0]["content"],
-            notice=last[0]["notice"],
         )
 
 

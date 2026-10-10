@@ -9,13 +9,19 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
 from .const import (
     CONF_LOCAL_HOST,
     CONF_USE_LOCAL_API,
     DOMAIN,
+    SERVICE_GET_MESSAGES,
     SERVICE_SET_BATTERY_RESERVE,
     SERVICE_SET_OPERATION_MODE,
 )
@@ -55,11 +61,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         try:
             await coordinator.async_config_entry_first_refresh()
             coordinator.logger.debug("FranklinWH initial data fetch complete")
-        except ConfigEntryAuthFailed as err:
-            coordinator.logger.error("Authentication failed: %s", err)
+        except ConfigEntryAuthFailed:
+            coordinator.logger.exception("Authentication failed")
             raise
         except Exception as err:
-            coordinator.logger.error("Error setting up FranklinWH: %s", err)
+            coordinator.logger.exception("Error setting up FranklinWH")
             raise ConfigEntryNotReady from err
         coordinators[gateway_id] = coordinator
 
@@ -70,23 +76,51 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Register services
+    async def handle_get_messages(call: ServiceCall) -> ServiceResponse:
+        """Handle the get_messages service call."""
+        count = call.data.get("count", 5)
+        try:
+            return {
+                "messages": await coordinator.async_get_messages(count),
+            }
+        except Exception:
+            coordinator.logger.exception("Failed to get messages")
+            raise
+
     async def handle_set_operation_mode(call: ServiceCall) -> None:
         """Handle the set_operation_mode service call."""
         mode = call.data.get("mode")
         try:
             await coordinator.async_set_operation_mode(mode)
-        except Exception as err:
-            coordinator.logger.error("Failed to set operation mode: %s", err)
+        except Exception:
+            coordinator.logger.exception("Failed to set operation mode")
+            raise
 
     async def handle_set_battery_reserve(call: ServiceCall) -> None:
         """Handle the set_battery_reserve service call."""
         reserve_percent = call.data.get("reserve_percent")
         try:
             await coordinator.async_set_battery_reserve(reserve_percent)
-        except Exception as err:
-            coordinator.logger.error("Failed to set battery reserve: %s", err)
+        except Exception:
+            coordinator.logger.exception("Failed to set battery reserve")
+            raise
 
     # Register services only once
+    if not hass.services.has_service(DOMAIN, SERVICE_GET_MESSAGES):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_GET_MESSAGES,
+            handle_get_messages,
+            schema=vol.Schema(
+                {
+                    vol.Required("count"): vol.All(
+                        vol.Coerce(int), vol.Range(min=1, max=10)
+                    )
+                }
+            ),
+            supports_response=SupportsResponse.ONLY,
+        )
+
     if not hass.services.has_service(DOMAIN, SERVICE_SET_OPERATION_MODE):
         hass.services.async_register(
             DOMAIN,

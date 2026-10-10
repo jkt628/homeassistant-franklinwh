@@ -59,6 +59,16 @@
     }
   },
   "services": {
+    "get_messages": {
+      "name": "Get Messages",
+      "description": "Retrieve the latest messages from the FranklinWH system.",
+      "fields": {
+        "count": {
+          "name": "Count",
+          "description": "Number of recent messages to retrieve (1-10)."
+        }
+      }
+    },
     "set_operation_mode": {
       "name": "Set Operation Mode",
       "description": "Set the operation mode of the FranklinWH system.",
@@ -81,4 +91,3 @@
     }
   }
 }
-
