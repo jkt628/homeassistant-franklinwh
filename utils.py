@@ -1,6 +1,7 @@
 """Utilities for FranklinWH integration."""
 
 import franklinwh
+import franklinwh_direct_or_cloud
 import httpx
 
 from homeassistant.core import HomeAssistant
@@ -12,7 +13,7 @@ from homeassistant.helpers.httpx_client import (
 from .data import MessageStats
 
 
-class MessageStatsClient(franklinwh.Client):
+class MessageStatsClient(franklinwh_direct_or_cloud.Client):
     """Client for fetching messages from FranklinWH."""
 
     async def get_message_stats(self) -> MessageStats:
@@ -36,6 +37,6 @@ async def get_client(
 
     franklinwh.HttpClientFactory.set_client_factory(_get_client)
     token_fetcher = franklinwh.TokenFetcher(username, password)
-    client = MessageStatsClient(token_fetcher, gateway_id)
+    client = MessageStatsClient(token_fetcher, gateway_id, direct_connect_host="172.17.0.1")
     await client.refresh_token()
     return (token_fetcher, client)
