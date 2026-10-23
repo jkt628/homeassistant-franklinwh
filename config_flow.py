@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-import voluptuous as vol
+import probatio
 
 from homeassistant.config_entries import (
     ConfigEntry,
@@ -119,13 +119,13 @@ class FranklinWHConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Build the data schema
         # Note: Local API fields are shown but not functional yet
-        data_schema = vol.Schema(
+        data_schema = probatio.Schema(
             {
-                vol.Required(CONF_USERNAME): cv.string,
-                vol.Required(CONF_PASSWORD): cv.string,
+                probatio.Required(CONF_USERNAME): cv.string,
+                probatio.Required(CONF_PASSWORD): cv.string,
                 # Local API not functional yet - fields shown but ignored
-                # vol.Optional(CONF_USE_LOCAL_API, default=False): cv.boolean,
-                # vol.Optional(CONF_LOCAL_HOST): cv.string,
+                # probatio.Optional(CONF_USE_LOCAL_API, default=False): cv.boolean,
+                # probatio.Optional(CONF_LOCAL_HOST): cv.string,
             }
         )
 
@@ -166,10 +166,10 @@ class FranklinWHConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
 
-        data_schema = vol.Schema(
+        data_schema = probatio.Schema(
             {
-                vol.Required(CONF_USERNAME): cv.string,
-                vol.Required(CONF_PASSWORD): cv.string,
+                probatio.Required(CONF_USERNAME): cv.string,
+                probatio.Required(CONF_PASSWORD): cv.string,
             }
         )
 
@@ -204,14 +204,14 @@ class FranklinWHOptionsFlow(OptionsFlow):
             DEFAULT_SCAN_INTERVAL,
         )
 
-        data_schema = vol.Schema(
+        data_schema = probatio.Schema(
             {
-                vol.Optional("scan_interval", default=scan_interval): vol.All(
-                    vol.Coerce(int), vol.Range(min=30, max=3600)
+                probatio.Optional("scan_interval", default=scan_interval): probatio.All(
+                    probatio.Coerce(int), probatio.Range(min=30, max=3600)
                 ),
                 # Local API options disabled - not functional yet
-                # vol.Optional(CONF_USE_LOCAL_API, default=False): cv.boolean,
-                # vol.Optional(CONF_LOCAL_HOST, default=""): cv.string,
+                # probatio.Optional(CONF_USE_LOCAL_API, default=False): cv.boolean,
+                # probatio.Optional(CONF_LOCAL_HOST, default=""): cv.string,
             }
         )
 

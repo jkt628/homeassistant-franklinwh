@@ -5,7 +5,7 @@ Originally inspired by @richo's homeassistant-franklinwh integration.
 Uses the franklinwh-python library by @richo.
 """
 
-import voluptuous as vol
+import probatio
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
@@ -111,10 +111,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             DOMAIN,
             SERVICE_GET_MESSAGES,
             handle_get_messages,
-            schema=vol.Schema(
+            schema=probatio.Schema(
                 {
-                    vol.Required("count"): vol.All(
-                        vol.Coerce(int), vol.Range(min=1, max=10)
+                    probatio.Required("count"): probatio.All(
+                        probatio.Coerce(int), probatio.Range(min=1, max=10)
                     )
                 }
             ),
@@ -126,9 +126,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             DOMAIN,
             SERVICE_SET_OPERATION_MODE,
             handle_set_operation_mode,
-            schema=vol.Schema(
+            schema=probatio.Schema(
                 {
-                    vol.Required("mode"): vol.In(
+                    probatio.Required("mode"): probatio.In(
                         ["self_use", "backup", "time_of_use", "clean_backup"]
                     )
                 }
@@ -140,10 +140,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             DOMAIN,
             SERVICE_SET_BATTERY_RESERVE,
             handle_set_battery_reserve,
-            schema=vol.Schema(
+            schema=probatio.Schema(
                 {
-                    vol.Required("reserve_percent"): vol.All(
-                        vol.Coerce(int), vol.Range(min=0, max=100)
+                    probatio.Required("reserve_percent"): probatio.All(
+                        probatio.Coerce(int), probatio.Range(min=0, max=100)
                     )
                 }
             ),
