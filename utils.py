@@ -29,6 +29,8 @@ async def get_client(
     username: str,
     password: str,
     gateway_id: str,
+    *,
+    direct_connect_host: str = "",
 ) -> tuple[franklinwh.TokenFetcher, MessageStatsClient]:
     """Create a franklinwh TokenFetcher and Client."""
 
@@ -37,6 +39,6 @@ async def get_client(
 
     franklinwh.HttpClientFactory.set_client_factory(_get_client)
     token_fetcher = franklinwh.TokenFetcher(username, password)
-    client = MessageStatsClient(token_fetcher, gateway_id, direct_connect_host="172.17.0.1")
+    client = MessageStatsClient(token_fetcher, gateway_id, direct_connect_host=direct_connect_host)
     await client.refresh_token()
     return (token_fetcher, client)

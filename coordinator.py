@@ -134,6 +134,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
                         self.username,
                         self.password,
                         self.gateway_id,
+                        direct_connect_host=self.local_host if self.use_local_api else "",
                     )
                 except Exception as err:
                     raise UpdateFailed(f"Failed to initialize client: {err}") from err
