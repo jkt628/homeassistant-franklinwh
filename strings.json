@@ -3,14 +3,10 @@
     "step": {
       "user": {
         "title": "FranklinWH Setup",
-        "description": "Connect your FranklinWH energy storage system to Home Assistant. Note: Local API is currently not functional - only cloud polling is available.",
+        "description": "Connect your FranklinWH energy storage system to Home Assistant.",
         "data": {
           "username": "Email Address",
-          "password": "Password",
-          "gateway_id": "Gateway ID (Serial Number)"
-        },
-        "data_description": {
-          "gateway_id": "Find your Gateway ID in the FranklinWH app under More → Site Address → SN. This is the complete serial number (usually starts with 100)."
+          "password": "Password"
         }
       },
       "reauth_confirm": {
@@ -38,11 +34,13 @@
     "step": {
       "init": {
         "title": "FranklinWH Options",
-        "description": "Configure polling interval for your FranklinWH integration. Local API options are disabled as they are not yet functional.",
+        "description": "Configure polling and Direct Connect for your FranklinWH integration.",
         "data": {
+          "use_local_api": "Use Direct Connect API (Beta)",
           "scan_interval": "Update interval (seconds)"
         },
         "data_description": {
+          "use_local_api": "Enable Direct Connect API to communicate directly with the FranklinWH gateway on your local network. This may improve performance and reliability, but is currently in beta and may not work in all environments.",
           "scan_interval": "How often to poll for updates from the cloud (minimum 30 seconds, default 60 seconds)"
         }
       }

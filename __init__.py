@@ -18,7 +18,6 @@ from homeassistant.core import (
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
 from .const import (
-    CONF_LOCAL_HOST,
     CONF_USE_LOCAL_API,
     DOMAIN,
     SERVICE_GET_MESSAGES,
@@ -39,14 +38,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up FranklinWH from a config entry."""
     username = entry.data[CONF_USERNAME]
     password = entry.data[CONF_PASSWORD]
-    use_local_api = entry.data.get(CONF_USE_LOCAL_API, False)
-    local_host = entry.data.get(CONF_LOCAL_HOST)
+    use_local_api = entry.options.get(CONF_USE_LOCAL_API, False)
 
     coordinators = {}
 
     for sub in entry.subentries.values():
         assert sub.unique_id is not None
         gateway_id = sub.unique_id
+        local_host = entry.options.get(gateway_id)
         # Create coordinator
         coordinator = FranklinWHCoordinator(
             hass=hass,

@@ -11,12 +11,18 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.const import CONF_PASSWORD, CONF_UNIQUE_ID, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 
-from .const import CONF_GATEWAY_ID, DEFAULT_SCAN_INTERVAL, DOMAIN, MANUFACTURER
+from .const import (
+    CONF_GATEWAY_ID,
+    CONF_USE_LOCAL_API,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    MANUFACTURER,
+)
 from .utils import get_client
 
 _LOGGER = logging.getLogger(DOMAIN)
@@ -111,21 +117,17 @@ class FranklinWHConfigFlow(ConfigFlow, domain=DOMAIN):
                             "subentry_type": "gateway",
                             "data": entry,
                             "title": entry["title"],
-                            "unique_id": entry[CONF_GATEWAY_ID],
+                            CONF_UNIQUE_ID: entry[CONF_GATEWAY_ID],
                         }
                         for entry in info
                     ],
                 )
 
         # Build the data schema
-        # Note: Local API fields are shown but not functional yet
         data_schema = probatio.Schema(
             {
                 probatio.Required(CONF_USERNAME): cv.string,
                 probatio.Required(CONF_PASSWORD): cv.string,
-                # Local API not functional yet - fields shown but ignored
-                # probatio.Optional(CONF_USE_LOCAL_API, default=False): cv.boolean,
-                # probatio.Optional(CONF_LOCAL_HOST): cv.string,
             }
         )
 
@@ -203,17 +205,29 @@ class FranklinWHOptionsFlow(OptionsFlow):
             "scan_interval",
             DEFAULT_SCAN_INTERVAL,
         )
+        use_local_api = self.config_entry.options.get("use_local_api", False)
 
         data_schema = probatio.Schema(
             {
                 probatio.Optional("scan_interval", default=scan_interval): probatio.All(
                     probatio.Coerce(int), probatio.Range(min=30, max=3600)
                 ),
-                # Local API options disabled - not functional yet
-                # probatio.Optional(CONF_USE_LOCAL_API, default=False): cv.boolean,
-                # probatio.Optional(CONF_LOCAL_HOST, default=""): cv.string,
+                probatio.Optional(
+                    CONF_USE_LOCAL_API, default=use_local_api
+                ): cv.boolean,
             }
         )
+        for sub in self.config_entry.subentries.values():
+            gateway_id = sub.unique_id
+            data_schema = data_schema.extend(
+                {
+                    probatio.Optional(
+                        gateway_id,
+                        description=f"Direct Connect IP Address for {gateway_id}",
+                        default=self.config_entry.options.get(gateway_id, ""),
+                    ): cv.string
+                }
+            )
 
         return self.async_show_form(step_id="init", data_schema=data_schema)
 
