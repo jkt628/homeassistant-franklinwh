@@ -3,25 +3,22 @@
 import logging
 from typing import Any
 
+from franklinwh_direct_connect_api import discover
+import netifaces
 import probatio
 
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
-    OptionsFlow,
+    OptionsFlowWithReload,
 )
 from homeassistant.const import CONF_PASSWORD, CONF_UNIQUE_ID, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 
-from .const import (
-    CONF_GATEWAY_ID,
-    CONF_USE_LOCAL_API,
-    DOMAIN,
-    MANUFACTURER,
-)
+from .const import CONF_GATEWAY_ID, CONF_SCAN_LOCAL_NETWORKS, DOMAIN, MANUFACTURER
 from .utils import get_client
 
 _LOGGER = logging.getLogger(DOMAIN)
@@ -189,7 +186,7 @@ class FranklinWHConfigFlow(ConfigFlow, domain=DOMAIN):
         return FranklinWHOptionsFlow()
 
 
-class FranklinWHOptionsFlow(OptionsFlow):
+class FranklinWHOptionsFlow(OptionsFlowWithReload):
     """Handle options flow for FranklinWH."""
 
     async def async_step_init(
@@ -197,29 +194,78 @@ class FranklinWHOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-        use_local_api = self.config_entry.options.get("use_local_api", False)
+            if not user_input.get(CONF_SCAN_LOCAL_NETWORKS):
+                return self.async_create_entry(title="", data=user_input)
+
+            # scan local networks for aGate IP address and store it in the config entry options
+            hosts: dict[str, bool] = {}
+            # cSpell:words ifaddresses sendmqtt
+            # pylint: disable=c-extension-no-member
+            for iface in netifaces.interfaces():
+                if iface.startswith(("en", "eth", "wl", "br")):
+                    try:
+                        for addr in netifaces.ifaddresses(iface).get(
+                            netifaces.AF_INET, []
+                        ):
+                            target = f"{addr['addr']}/{addr['netmask']}"
+                            _LOGGER.debug(
+                                "Scanning for FranklinWH gateways on %s:%s",
+                                iface,
+                                target,
+                            )
+                            for host in discover.expand_targets(target):
+                                hosts[host] = True
+                            del hosts[addr["addr"]]  # no need to scan myself
+                    except ValueError:
+                        _LOGGER.warning(
+                            "Could not get addresses for interface %s", iface
+                        )
+            # pylint: enable=c-extension-no-member
+            for host in discover.scan(
+                hosts.keys(),
+                ports=(discover.PORT_SENDMQTT,),
+                workers=min(len(hosts), 1024),
+            ):
+                if not host.manifest:
+                    host.manifest = discover.probe_sendmqtt(host.host, timeout=5)
+                gateway_id = host.manifest.get("IBG_SN")
+                _LOGGER.debug("discovered %s at %s", gateway_id, host.host)
+                options = self.config_entry.options.copy()
+                options[gateway_id] = host.host
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    options=options,
+                )
 
         data_schema = probatio.Schema(
             {
-                probatio.Optional(
-                    CONF_USE_LOCAL_API, default=use_local_api
-                ): cv.boolean,
+                probatio.Optional(CONF_SCAN_LOCAL_NETWORKS, default=False): cv.boolean,
             }
         )
+        description_placeholders = {}
         for sub in self.config_entry.subentries.values():
             gateway_id = sub.unique_id
+            description = f"Direct Connect IP Address for {gateway_id}"
             data_schema = data_schema.extend(
                 {
                     probatio.Optional(
                         gateway_id,
-                        description=f"Direct Connect IP Address for {gateway_id}",
-                        default=self.config_entry.options.get(gateway_id, ""),
+                        description={
+                            "suggested_value": self.config_entry.options.get(
+                                gateway_id, ""
+                            )
+                        },
+                        msg=description,
                     ): cv.string
                 }
             )
+            description_placeholders[gateway_id] = description
 
-        return self.async_show_form(step_id="init", data_schema=data_schema)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=data_schema,
+            description_placeholders=description_placeholders,
+        )
 
 
 class CannotConnect(HomeAssistantError):

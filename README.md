@@ -12,7 +12,8 @@ ______________________________________________________________________
 
 Based on complete rewrite by Joshua Seidel ([@JoshuaSeidel](https://github.com/JoshuaSeidel)) with Anthropic Claude Sonnet 4.5.\
 Originally inspired by [@richo](https://github.com/richo)'s [homeassistant-franklinwh](https://github.com/richo/homeassistant-franklinwh).\
-[Extended](https://github.com/jkt628/homeassistant-franklinwh) by [@jkt628](https://github.com/jkt628) with support for multiple installations and new controls for Mode, Reserve, SmartCircuits, _etc._\
+[Extended](https://github.com/jkt628/homeassistant-franklinwh) by [@jkt628](https://github.com/jkt628) with support for
+multiple installations, Direct Connect, and new controls for Mode, Reserve, SmartCircuits, _etc._\
 Uses [@jkt628](https://github.com/jkt628)'s fork of [franklinwh-python](https://github.com/jkt628/franklinwh-python) library.
 
 ______________________________________________________________________
@@ -46,7 +47,7 @@ Additional sensors and controls become available depending on an installation's 
 - 🔄 **DataUpdateCoordinator**: Efficient polling with minimal API calls
 - 📱 **Device Registry**: All entities grouped under one device per installation
 - 🔍 **Diagnostics**: Built-in debugging support
-- 🌐 **Local API Support**: Experimental local communication (when available)
+- 🌐 **Direct Connect Support**: most-used statistics do not rely on cloud (beta)
 - 🛠️ **Services**: Custom services for advanced control
 
 ______________________________________________________________________
@@ -84,8 +85,6 @@ ______________________________________________________________________
 
    - **Email Address**: Your FranklinWH account email
    - **Password**: Your FranklinWH account password
-   - **Use Local API** (optional): Enable for experimental local communication
-   - **Local Host** (optional): IP address of your FranklinWH gateway
 
 1. Click **Submit** and your devices will be added automatically!
 
@@ -272,17 +271,16 @@ If you see "Device response timed out":
 1. **Verify gateway is online**: Check the FranklinWH mobile app
 1. **Check Gateway ID**: Must be exact SN from app (More → Site Address → SN)
 1. **FranklinWH cloud status**: Service may be temporarily down
-1. **Disable local API**: If enabled, switch back to cloud polling
 1. **Wait and retry**: Gateway may be rebooting or updating
 
-### Local API Issues
+### Direct Connect Issues
 
-The local API is **experimental** and may not work:
+Direct Connect is **beta** and may not work:
 
 - Most users should use **cloud polling** (default)
-- Local API requires the gateway to support local communication
-- If local API times out, disable it and use cloud polling
-- Local API support depends on gateway firmware version
+- Direct Connect requires the gateway to support local communication
+- If Direct Connect times out, clear the Option value to use cloud polling
+- Direct Connect support depends on gateway firmware version
 
 ### Diagnostics
 
@@ -295,17 +293,20 @@ To get detailed diagnostic information:
 
 ______________________________________________________________________
 
-## 🔍 Local API Support (Experimental)
+## 🔍 Direct Connect Support (Beta)
 
-This integration includes experimental support for local API communication. Currently, the FranklinWH library primarily uses cloud polling, but local API support is being explored.
+This integration includes beta support for Direct Connect communication which bypasses cloud for most-used statistics.
 
-**To enable local API (when available):**
+**To enable Direct Connect:**
 
-1. Enable "Use Local API" during setup
-1. Enter your gateway's local IP address
-1. The integration will attempt local communication with faster polling (10 seconds vs 60 seconds)
+1. Open Options for the integration
+1. Scan local networks or enter your gateway's IPv4 address
+1. The integration will attempt Direct Connect with faster polling (10 seconds vs 60 seconds)
 
-> 📝 **Note**: Local API support depends on the underlying `franklinwh` Python library and may not be fully functional yet. This is an area of active development.
+**To disable Direct Connect:**
+
+1. Open Options for the integration
+1. Clear the IPv4 address to enable cloud polling
 
 ______________________________________________________________________
 
@@ -335,7 +336,11 @@ ______________________________________________________________________
 
 ## 📋 Changelog
 
-### Version 2026.9.0 (current)
+### Version 2026.10.4 (current)
+
+- ✨ **NEW**: Direct Connect with scanning local networks
+
+### Version 2026.9.0
 
 - ⬆️ **UPGRADED**: Updated to [@jkt628](https://github.com/jkt628)'s fork of franklinwh library 2026.9.0
 - ✨ **NEW**: support multiple installation with accessories

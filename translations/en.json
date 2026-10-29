@@ -34,12 +34,12 @@
     "step": {
       "init": {
         "title": "FranklinWH Options",
-        "description": "Configure polling and Direct Connect for your FranklinWH integration.",
+        "description": "Configure Direct Connect for your FranklinWH integration.",
         "data": {
-          "use_local_api": "Use Direct Connect API (Beta)"
+          "scan_local_networks": "Scan local networks for Direct Connect hosts (Beta)"
         },
         "data_description": {
-          "use_local_api": "Enable Direct Connect API to communicate directly with the FranklinWH gateway on your local network. This may improve performance and reliability, but is currently in beta and may not work in all environments."
+          "scan_local_networks": "Scan local networks to communicate directly with the FranklinWH gateway.  Alternately, if you have another method to determine a gateway's IPv4 address enter it below.  This may improve performance and reliability, but is currently in beta and may not work in all environments.  NOTE: large networks may require several minutes to scan.  WARNING: this process is prohibited in some environments."
         }
       }
     }

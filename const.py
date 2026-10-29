@@ -6,8 +6,7 @@ DOMAIN: Final = "franklin_wh"
 
 # Configuration
 CONF_GATEWAY_ID: Final = "gateway_id"
-CONF_USE_LOCAL_API: Final = "use_local_api"
-CONF_LOCAL_HOST: Final = "local_host"
+CONF_SCAN_LOCAL_NETWORKS: Final = "scan_local_networks"
 
 # Default values
 DEFAULT_NAME: Final = "FranklinWH"
