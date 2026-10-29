@@ -36,12 +36,10 @@
         "title": "FranklinWH Options",
         "description": "Configure polling and Direct Connect for your FranklinWH integration.",
         "data": {
-          "use_local_api": "Use Direct Connect API (Beta)",
-          "scan_interval": "Update interval (seconds)"
+          "use_local_api": "Use Direct Connect API (Beta)"
         },
         "data_description": {
-          "use_local_api": "Enable Direct Connect API to communicate directly with the FranklinWH gateway on your local network. This may improve performance and reliability, but is currently in beta and may not work in all environments.",
-          "scan_interval": "How often to poll for updates from the cloud (minimum 30 seconds, default 60 seconds)"
+          "use_local_api": "Enable Direct Connect API to communicate directly with the FranklinWH gateway on your local network. This may improve performance and reliability, but is currently in beta and may not work in all environments."
         }
       }
     }

@@ -19,7 +19,6 @@ import homeassistant.helpers.config_validation as cv
 from .const import (
     CONF_GATEWAY_ID,
     CONF_USE_LOCAL_API,
-    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     MANUFACTURER,
 )
@@ -199,19 +198,10 @@ class FranklinWHOptionsFlow(OptionsFlow):
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
-
-        # Get current values
-        scan_interval = self.config_entry.options.get(
-            "scan_interval",
-            DEFAULT_SCAN_INTERVAL,
-        )
         use_local_api = self.config_entry.options.get("use_local_api", False)
 
         data_schema = probatio.Schema(
             {
-                probatio.Optional("scan_interval", default=scan_interval): probatio.All(
-                    probatio.Coerce(int), probatio.Range(min=30, max=3600)
-                ),
                 probatio.Optional(
                     CONF_USE_LOCAL_API, default=use_local_api
                 ): cv.boolean,
