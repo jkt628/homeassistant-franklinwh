@@ -338,7 +338,9 @@ ______________________________________________________________________
 
 ### Version 2026.10.4 (current)
 
-- ✨ **NEW**: Direct Connect with scanning local networks
+- ✨ **NEW**: Direct Connect with scanning local networks using
+  [@david2069](https://github.com/david2069)'s
+  [franklinwh-direct-connect-api](https://github.com/david2069/franklinwh-direct-connect-api)
 
 ### Version 2026.9.0
 
