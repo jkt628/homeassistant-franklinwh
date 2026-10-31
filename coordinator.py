@@ -71,8 +71,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
         username: str,
         password: str,
         gateway_id: str,
-        use_local_api: bool = False,
-        local_host: str | None = None,
+        direct_host: str | None = None,
         max_failures: int = 3,
     ) -> None:
         """Initialize the coordinator."""
@@ -83,7 +82,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
 
         # Set update interval based on API type
         update_interval = (
-            DEFAULT_LOCAL_SCAN_INTERVAL if use_local_api else DEFAULT_SCAN_INTERVAL
+            DEFAULT_LOCAL_SCAN_INTERVAL if direct_host else DEFAULT_SCAN_INTERVAL
         )
 
         super().__init__(
@@ -100,8 +99,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
         self.username = username
         self.password = password
         self.gateway_id = gateway_id
-        self.use_local_api = use_local_api
-        self.local_host = local_host
+        self.direct_host = direct_host
         self.client: Client = None  # type: ignore  # noqa: PGH003
         self._client_lock = asyncio.Lock()
 
@@ -134,6 +132,7 @@ class FranklinWHCoordinator(DataUpdateCoordinator[FranklinWHData]):
                         self.username,
                         self.password,
                         self.gateway_id,
+                        direct_connect_host=self.direct_host,
                     )
                 except Exception as err:
                     raise UpdateFailed(f"Failed to initialize client: {err}") from err

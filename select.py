@@ -1,6 +1,6 @@
 """Select platform for FranklinWH integration."""
 
-from franklinwh.client import WorkMode
+from franklinwh import WorkMode
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
