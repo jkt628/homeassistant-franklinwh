@@ -16,8 +16,10 @@ from homeassistant.core import (
     SupportsResponse,
 )
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
 
 from .const import (
+    CONF_GATEWAY_ID,
     DOMAIN,
     SERVICE_GET_MESSAGES,
     SERVICE_SET_BATTERY_RESERVE,
@@ -26,6 +28,8 @@ from .const import (
 from .coordinator import FranklinWHCoordinator
 
 PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.EVENT,
     Platform.NUMBER,
     Platform.SELECT,
     Platform.SENSOR,
@@ -70,6 +74,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Record firmware/hardware versions once every platform has registered the
+    # gateway device (entities passing sw_version=None would otherwise win).
+    device_registry = dr.async_get(hass)
+    for gateway_id, coordinator in coordinators.items():
+        info = coordinator.device_info(entry)
+        versions = {
+            key: value
+            for key in ("sw_version", "hw_version")
+            if (value := info.get(key)) is not None
+        }
+        device = device_registry.async_get_device(identifiers={(DOMAIN, gateway_id)})
+        if device is not None and versions:
+            device_registry.async_update_device(device.id, **versions)
 
     # Register services
     async def handle_get_messages(call: ServiceCall) -> ServiceResponse:
@@ -146,6 +164,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     return True
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: dr.DeviceEntry
+) -> bool:
+    """Allow removing devices that no longer belong to a gateway or the account."""
+    from .sensor import account_device_id
+
+    known = {(DOMAIN, account_device_id(entry))}
+    known.update(
+        (DOMAIN, subentry.data[CONF_GATEWAY_ID])
+        for subentry in entry.subentries.values()
+        if subentry.subentry_type == "gateway"
+    )
+    return not any(identifier in known for identifier in device_entry.identifiers)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
